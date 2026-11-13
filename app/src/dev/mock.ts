@@ -276,7 +276,7 @@ export async function installMock() {
             const seed = Math.sin(i * 12.9898) * 43758.5453;
             const r = seed - Math.floor(seed);
             if (r < 0.18) continue;
-            out.push({ date: key, mode: "lotus", seconds: Math.round(3600 * (2 + r * 6)), up: 0, down: 0 });
+            out.push({ date: key, mode: "lotus", seconds: Math.round(3600 * (2 + r * 6)), up: Math.round(4e5 * (1 + r)), down: Math.round(9e5 * (1 + r)) });
             if (r > 0.4) out.push({ date: key, mode: "shadow", server_id: "p1", server: "Frankfurt VPS", seconds: Math.round(3600 * r * 5), up: Math.round(4e7 * r), down: Math.round(1.6e9 * r * r) });
             if (r > 0.85) out.push({ date: key, mode: "shadow", server_id: "p2", server: "Home lab", seconds: Math.round(1800 * r), up: Math.round(9e6 * r), down: Math.round(2e8 * r) });
           }

@@ -55,7 +55,7 @@ function buckets(days: UsageDay[], range: Range): Bucket[] {
     const b = index.get(range === "year" ? d.date.slice(0, 7) : d.date);
     if (!b) continue;
     b.seconds += d.seconds;
-    if (d.mode === "shadow") b.bytes += d.up + d.down;
+    b.bytes += d.up + d.down;
   }
   return out;
 }
@@ -67,7 +67,7 @@ function perServer(days: UsageDay[], keys: Set<string>, range: Range) {
     if (!keys.has(range === "year" ? d.date.slice(0, 7) : d.date)) continue;
     const id = d.mode === "lotus" ? "lotus" : `s:${d.server_id ?? d.server ?? "?"}`;
     const r = rows.get(id) ?? { name: d.mode === "lotus" ? "LOTUS (encrypted DNS)" : d.server ?? "Server", bytes: 0, seconds: 0 };
-    r.bytes += d.mode === "shadow" ? d.up + d.down : 0;
+    r.bytes += d.up + d.down;
     r.seconds += d.seconds;
     if (d.server) r.name = d.mode === "lotus" ? r.name : d.server;
     rows.set(id, r);
