@@ -4,13 +4,13 @@
 
 ### Private DNS and a bring-your-own-server VPN for Windows
 
-[![Release](https://img.shields.io/badge/release-v1.0.0-6e7bff?style=flat-square)](https://github.com/HighSkai/Lotus/releases/latest)
+[![Release](https://img.shields.io/badge/release-v1.0.1-6e7bff?style=flat-square)](https://github.com/HighSkai/Lotus/releases/latest)
 [![Platform](https://img.shields.io/badge/platform-Windows%2010%20%7C%2011%20x64-0078D4?style=flat-square)](#install)
 [![License](https://img.shields.io/badge/license-GPL--3.0-b398ff?style=flat-square)](LICENSE)
 [![Engine](https://img.shields.io/badge/engine-sing--box%201.14.4-1a1e3a?style=flat-square)](https://github.com/SagerNet/sing-box)
 [![Built with](https://img.shields.io/badge/built%20with-Rust%20%C2%B7%20Tauri%202%20%C2%B7%20React-dea584?style=flat-square)](docs/ARCHITECTURE.md)
 
-[**Download**](https://github.com/HighSkai/Lotus/releases/latest) &nbsp;·&nbsp; [Set up your server](docs/BYO-SERVER.md) &nbsp;·&nbsp; [How it works](docs/ARCHITECTURE.md) &nbsp;·&nbsp; [Privacy](docs/PRIVACY-SECURITY.md) &nbsp;·&nbsp; [Test results](docs/TESTING.md)
+[**Download**](https://github.com/HighSkai/Lotus/releases/latest) &nbsp;Â·&nbsp; [Set up your server](docs/BYO-SERVER.md) &nbsp;Â·&nbsp; [How it works](docs/ARCHITECTURE.md) &nbsp;Â·&nbsp; [Privacy](docs/PRIVACY-SECURITY.md) &nbsp;Â·&nbsp; [Test results](docs/TESTING.md)
 
 </div>
 
@@ -22,11 +22,11 @@ There's no account, no subscription, no telemetry, and no central LOTUS infrastr
 
 ## Two modes, one switch
 
-| | 🌸 **LOTUS**: private DNS | 🌑 **SHADOW**: your own VPN |
+| | ðŸŒ¸ **LOTUS**: private DNS | ðŸŒ‘ **SHADOW**: your own VPN |
 |---|---|---|
 | **What it protects** | Every DNS lookup, from every app | All traffic from the device: TCP and UDP, IPv4 and IPv6 |
 | **Your public IP** | Unchanged (by design) | Your server's IP |
-| **Needs a server** | No | Yes, any Debian/Ubuntu VPS (one-script setup) |
+| **Needs a server** | No | Yes, any Debian, Ubuntu or Arch Linux VPS (one-script setup) |
 | **Encryption** | DNS-over-HTTPS, DoH over HTTP/3, DNS-over-TLS | VLESS + REALITY + XTLS-Vision by default; Hysteria2, Trojan, Shadowsocks-2022, TUIC, AnyTLS, NaiveProxy, WireGuard |
 | **Leak protection** | Every adapter uses LOTUS; plaintext DNS to any other server is blocked | Full TUN routing, DNS through the tunnel, persistent kill switch |
 | **Extras** | Tracker blocking, malicious-domain filtering, custom resolvers | Server latency test, live exit IP and country, traffic meter |
@@ -55,7 +55,7 @@ There's no account, no subscription, no telemetry, and no central LOTUS infrastr
 - **Bring your own server.** Paste a `vless://`, `ss://`, `trojan://`, `hysteria2://`, `tuic://`, `anytls://`, `naive+https://` link, a WireGuard `.conf` or sing-box JSON. Or run the included installer on a fresh VPS and paste the `lotus://` link it prints.
 - **Secure by default.** There is no "allow insecure" switch anywhere. Links that disable certificate checks, or use unencrypted or obsolete protocols, are refused with an explanation.
 - **Privacy by design.** No accounts or analytics. Engine logs stay in memory at warning level with addresses scrubbed. Server profiles are encrypted with your Windows account (DPAPI).
-- **Light.** The background service uses ~17 MB, and the networking engine ~41–66 MB while on (none when off). With the window closed, LOTUS releases its web view completely and idles at ~5 MB.
+- **Light.** The background service uses ~17 MB, and the networking engine ~41â€“66 MB while on (none when off). With the window closed, LOTUS releases its web view completely and idles at ~5 MB.
 
 ## How it works
 
@@ -64,10 +64,10 @@ flowchart LR
   subgraph PC["Your PC"]
     UI["LOTUS app<br/>(unprivileged)"] -- "typed commands<br/>over a local pipe" --> SVC["LOTUS service<br/>(LocalSystem)"]
     SVC --> ENG["sing-box engine<br/>(SHA-256 verified)"]
-    SVC --> WFP["Windows Filtering Platform<br/>DNS guard · kill switch"]
+    SVC --> WFP["Windows Filtering Platform<br/>DNS guard Â· kill switch"]
   end
-  ENG -- "LOTUS · DoH / DoH3 / DoT" --> DNS["Encrypted resolver<br/>Cloudflare · Quad9 · Mullvad · AdGuard"]
-  ENG -- "SHADOW · VLESS + REALITY + Vision<br/>or Hysteria2 (QUIC)" --> VPS["Your VPS<br/>exit IP"]
+  ENG -- "LOTUS Â· DoH / DoH3 / DoT" --> DNS["Encrypted resolver<br/>Cloudflare Â· Quad9 Â· Mullvad Â· AdGuard"]
+  ENG -- "SHADOW Â· VLESS + REALITY + Vision<br/>or Hysteria2 (QUIC)" --> VPS["Your VPS<br/>exit IP"]
   VPS --> NET(("Internet"))
 ```
 
@@ -75,25 +75,33 @@ The window you click on has **no privileges**. A small Windows service does the 
 
 ## Install
 
-1. Download **`LOTUS_1.0.0_x64-setup.exe`** from the [latest release](https://github.com/HighSkai/Lotus/releases/latest) and approve the administrator prompt.
+1. Download **`LOTUS_1.0.1_x64-setup.exe`** from the [latest release](https://github.com/HighSkai/Lotus/releases/latest) and approve the administrator prompt.
 2. Open LOTUS, choose **LOTUS** or **SHADOW** at the top, and press the switch.
 
 Requirements: Windows 10 or 11 (x64). WebView2 ships with Windows 11 and is installed automatically if missing.
 
-> **Note:** the installer isn't code-signed yet, so SmartScreen may say *"Windows protected your PC"*. Choose **More info → Run anyway** after checking the SHA-256 published with the release.
+> **Note:** the installer isn't code-signed yet, so SmartScreen may say *"Windows protected your PC"*. Choose **More info â†’ Run anyway** after checking the SHA-256 published with the release.
 
-Uninstalling (Settings → Apps → LOTUS) stops the service, restores your original DNS settings and removes every LOTUS firewall rule.
+Uninstalling (Settings â†’ Apps â†’ LOTUS) stops the service, restores your original DNS settings and removes every LOTUS firewall rule.
 
 ## Set up your own server (SHADOW)
 
-On a fresh Debian 12/13 or Ubuntu 22.04/24.04 VPS:
+On a VPS (or any Linux machine with a public IP) running one of:
+
+| Distribution | Versions |
+|---|---|
+| Debian | 12, 13 |
+| Ubuntu | 22.04, 24.04 |
+| **Arch Linux** | rolling (also Manjaro, EndeavourOS and other Arch derivatives) |
+
+x86-64 and ARM64 are both supported.
 
 ```bash
-curl -fsSLO https://github.com/HighSkai/Lotus/releases/download/v1.0.0/lotus-server-install.sh
+curl -fsSLO https://github.com/HighSkai/Lotus/releases/latest/download/lotus-server-install.sh
 sudo bash lotus-server-install.sh                 # add --with-hysteria2 for a UDP/QUIC profile too
 ```
 
-The script verifies the sing-box download against a pinned SHA-256, generates REALITY keys, installs a hardened systemd service, **asks** before opening ports (it never overwrites existing firewall rules), and checks the result with a real handshake before printing your `lotus://` link. Paste the link into **LOTUS → Add server → From clipboard**. Remove everything with `--uninstall`. Full guide: [BYO-SERVER.md](docs/BYO-SERVER.md).
+The script verifies the sing-box download against a pinned SHA-256, generates REALITY keys, installs a hardened systemd service, **asks** before opening ports (it never overwrites existing firewall rules), and checks the result with a real handshake before printing your `lotus://` link. Paste the link into **LOTUS â†’ Add server â†’ From clipboard**. Remove everything with `--uninstall`. Full guide: [BYO-SERVER.md](docs/BYO-SERVER.md).
 
 ## Why VLESS + REALITY + Vision?
 
@@ -114,15 +122,15 @@ Every claim above was checked on a real Windows 11 PC with Windows' own tools. A
 
 | Check | Result |
 |---|---|
-| LOTUS: lookups answered by the encrypted resolver, not the ISP | ✅ |
-| LOTUS: apps with hard-coded DNS (8.8.8.8:53) blocked | ✅ |
-| SHADOW: all IPv4/IPv6 routes via the tunnel, TCP + UDP | ✅ |
-| Kill switch: deliberate bypass attempt blocked | ✅ |
+| LOTUS: lookups answered by the encrypted resolver, not the ISP | âœ… |
+| LOTUS: apps with hard-coded DNS (8.8.8.8:53) blocked | âœ… |
+| SHADOW: all IPv4/IPv6 routes via the tunnel, TCP + UDP | âœ… |
+| Kill switch: deliberate bypass attempt blocked | âœ… |
 | Engine killed mid-session: leak / recovery | none / ~2 s |
 | Service killed mid-session: leak / recovery | none / ~5 s |
 | Connect time (incl. verification) | ~1.9 s |
-| Throughput through the tunnel vs direct | ~0.5–1.2 Gbps vs ~0.7–1.25 Gbps |
-| Uninstall while active: DNS restored, no rules left | ✅ |
+| Throughput through the tunnel vs direct | ~0.5â€“1.2 Gbps vs ~0.7â€“1.25 Gbps |
+| Uninstall while active: DNS restored, no rules left | âœ… |
 
 What *hasn't* been verified yet (a remote VPS exit, Wi-Fi/sleep transitions, Windows 10) is listed honestly in [TESTING.md](docs/TESTING.md).
 
@@ -158,7 +166,7 @@ cd app; npm install; npx tauri dev
 crates/lotus-core      profiles, importers, validation, engine config builders, IPC types (no OS calls)
 crates/lotus-service   privileged Windows service: engine supervisor, DNS, WFP firewall, named-pipe IPC
 app/                   Tauri 2 + React desktop app (unprivileged), tray, encrypted profile store
-server/                Debian/Ubuntu exit-server installer
+server/                exit-server installer (Debian, Ubuntu, Arch Linux)
 scripts/               pinned engine fetch, release build, dev install, failure-injection tests
 docs/                  documentation
 ```

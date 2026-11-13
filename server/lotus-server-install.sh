@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # =============================================================================
-#  LOTUS exit-server installer for Debian / Ubuntu
+#  LOTUS exit-server installer for Debian, Ubuntu and Arch Linux
+#  (including derivatives such as Manjaro and EndeavourOS)
 #
 #  Installs sing-box and configures:
 #    * VLESS + REALITY + XTLS-Vision on TCP (default 443): no domain or
@@ -73,7 +74,7 @@ while [ $# -gt 0 ]; do
     --yes|-y) YES=1; shift ;;
     --show) ACTION=show; shift ;;
     --uninstall) ACTION=uninstall; shift ;;
-    -h|--help) sed -n '2,32p' "$0"; exit 0 ;;
+    -h|--help) sed -n '2,29p' "$0"; exit 0 ;;
     *) die "Unknown option: $1 (see --help)" ;;
   esac
 done
@@ -115,8 +116,9 @@ fi
 # ----------------------------------------------------------------------------- preflight
 . /etc/os-release 2>/dev/null || die "Cannot detect the operating system"
 case "${ID:-}:${ID_LIKE:-}" in
-  debian:*|ubuntu:*|*:*debian*) ;;
-  *) die "This installer supports Debian and Ubuntu (found ${PRETTY_NAME:-unknown})." ;;
+  debian:*|ubuntu:*|*:*debian*|*:*ubuntu*) OS_FAMILY=debian ;;
+  arch:*|*:*arch*) OS_FAMILY=arch ;;   # Arch Linux and derivatives (Manjaro, EndeavourOS, …)
+  *) die "This installer supports Debian, Ubuntu and Arch Linux (found ${PRETTY_NAME:-unknown})." ;;
 esac
 case "$(uname -m)" in
   x86_64|amd64) ARCH=amd64; SB_SHA256="$SB_SHA256_amd64" ;;
@@ -124,6 +126,32 @@ case "$(uname -m)" in
   *) die "Unsupported CPU architecture $(uname -m)" ;;
 esac
 command -v systemctl >/dev/null || die "systemd is required"
+
+say "${c_b}Installing dependencies…${c_0}"
+case "$OS_FAMILY" in
+  debian)
+    export DEBIAN_FRONTEND=noninteractive
+    apt-get update -qq
+    apt-get install -y -qq --no-install-recommends curl ca-certificates openssl tar iproute2 >/dev/null
+    ;;
+  arch)
+    # Install only what is missing and never run `pacman -Sy` on its own:
+    # refreshing the database without upgrading causes partial upgrades on Arch.
+    missing=()
+    command -v curl >/dev/null      || missing+=(curl)
+    command -v openssl >/dev/null   || missing+=(openssl)
+    command -v tar >/dev/null       || missing+=(tar)
+    command -v ss >/dev/null        || missing+=(iproute2)
+    command -v sha256sum >/dev/null || missing+=(coreutils)
+    command -v useradd >/dev/null   || missing+=(shadow)
+    [ -s /etc/ssl/certs/ca-certificates.crt ] || missing+=(ca-certificates)
+    if [ "${#missing[@]}" -gt 0 ]; then
+      pacman -S --needed --noconfirm "${missing[@]}" >/dev/null \
+        || die "pacman couldn't install: ${missing[*]}. Update the system first (pacman -Syu), then run this installer again."
+    fi
+    ;;
+esac
+ok "Dependencies ready"
 
 if [ -f "$ETC/config.json" ]; then
   warn "LOTUS is already installed here."
@@ -135,12 +163,6 @@ port_busy() { ss -H -ltn "sport = :$1" 2>/dev/null | grep -q . ; }
 uport_busy() { ss -H -lun "sport = :$1" 2>/dev/null | grep -q . ; }
 port_busy "$PORT" && die "TCP port $PORT is already in use ($(ss -H -ltnp "sport = :$PORT" | awk '{print $NF}' | head -1)). Choose another with --port."
 if [ "$WITH_HY2" = 1 ] && uport_busy "$HY2_PORT"; then die "UDP port $HY2_PORT is already in use. Choose another with --hy2-port."; fi
-
-say "${c_b}Installing dependencies…${c_0}"
-export DEBIAN_FRONTEND=noninteractive
-apt-get update -qq
-apt-get install -y -qq --no-install-recommends curl ca-certificates openssl tar iproute2 >/dev/null
-ok "Dependencies ready"
 
 # ----------------------------------------------------------------------------- sing-box
 TMP="$(mktemp -d)"; trap 'rm -rf "$TMP"' EXIT
@@ -181,7 +203,8 @@ ok "Camouflage site: $SNI"
 
 # ----------------------------------------------------------------------------- credentials
 install -d -m 0750 "$ETC" "$STATE"
-id "$SVC_USER" >/dev/null 2>&1 || useradd --system --no-create-home --home-dir "$STATE" --shell /usr/sbin/nologin "$SVC_USER"
+NOLOGIN="$(command -v nologin 2>/dev/null || echo /usr/sbin/nologin)"   # /usr/bin/nologin on Arch
+id "$SVC_USER" >/dev/null 2>&1 || useradd --system --no-create-home --home-dir "$STATE" --shell "$NOLOGIN" "$SVC_USER"
 chown root:"$SVC_USER" "$ETC"; chown "$SVC_USER":"$SVC_USER" "$STATE"
 
 UUID="$("$SB" generate uuid)"

@@ -32,7 +32,7 @@
 | `crates/lotus-service` | Privileged service. `win/` holds every unsafe Windows call: WFP, IP Helper, DPAPI, ACLs, job objects, named pipes, SCM | Windows today |
 | `app/src-tauri` | UI host: IPC client, tray, profile vault, commands | Windows today; Tauri targets macOS/Linux |
 | `app/src` | React UI (no runtime dependencies besides React and the Tauri API) | Any |
-| `server/` | Debian/Ubuntu exit-server installer | Linux servers |
+| `server/` | Exit-server installer | Debian, Ubuntu, Arch Linux (and derivatives) |
 
 ## Security boundaries
 

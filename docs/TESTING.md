@@ -100,7 +100,7 @@ Note: sing-box itself (sing-tun) registers non-persistent *permit* filters for i
 
 ## Not yet verified (needs external hardware or infrastructure)
 
-- **Exit-IP change through a remote VPS** and the server installer on a real Debian/Ubuntu VPS. The installer is syntax-checked, and its link builder and Hysteria2 certificate/pin logic were exercised locally. Its apt, systemd and firewall paths weren't run.
+- **Exit-IP change through a remote VPS** and the server installer on a real Debian, Ubuntu or Arch Linux server. The installer is syntax-checked, its distribution detection was tested against the `os-release` values of Debian, Ubuntu, Arch, Manjaro and EndeavourOS (Fedora correctly rejected), and its link builder and Hysteria2 certificate/pin logic were exercised locally. Its apt/pacman, systemd and firewall paths weren't run.
 - Wi-Fi ↔ Ethernet switching and sleep/resume on hardware (code paths: network-change notifications and the SCM power events → re-verify or reconnect).
 - Windows 10 (developed and tested on Windows 11).
 - NaiveProxy, TUIC, AnyTLS, Trojan, Shadowsocks and WireGuard against live servers. Their configs are validated by the engine, but no live handshake was done.

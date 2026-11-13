@@ -6,11 +6,11 @@ SHADOW tunnels your device through a server **you** control. Websites see that s
 
 The script lives at `server/lotus-server-install.sh`. In the app, use **Servers → Add → Set up my own server → Save install script…**
 
-1. **Get a VPS**: Debian 12/13 or Ubuntu 22.04/24.04, x86-64 or ARM64, 512 MB RAM or more, in the country you want your exit IP to be in.
-2. **Run it on the server.** The quickest way is to download it straight from the release while logged in to the VPS:
+1. **Get a VPS** (or any Linux machine with a public IP): Debian 12/13, Ubuntu 22.04/24.04, or **Arch Linux** (Manjaro and EndeavourOS work too); x86-64 or ARM64, 512 MB RAM or more, in the country you want your exit IP to be in.
+2. **Run it on the server.** The quickest way is to download it straight from the latest release while logged in to the server:
    ```
-   curl -fsSLO https://github.com/HighSkai/Lotus/releases/download/v1.0.0/lotus-server-install.sh
-   sudo bash lotus-server-install.sh
+   curl -fsSLO https://github.com/HighSkai/Lotus/releases/latest/download/lotus-server-install.sh
+   sudo bash lotus-server-install.sh        # or, as root: bash lotus-server-install.sh
    ```
    Or upload the copy saved from the app (from PowerShell on your PC; Windows 10/11 include `ssh` and `scp`):
    ```
@@ -22,6 +22,7 @@ The script lives at `server/lotus-server-install.sh`. In the app, use **Servers 
 
 ### What it does
 
+- Installs its few dependencies (curl, OpenSSL, tar, iproute2, CA certificates) with `apt` on Debian/Ubuntu or `pacman` on Arch. On Arch it installs only what's missing and never runs a bare `pacman -Sy`, which would risk a partial upgrade. If the package database is too old, it asks you to run `pacman -Syu` first.
 - Verifies the sing-box 1.14.4 archive against a pinned SHA-256 digest before installing anything (`/opt/lotus/sing-box`).
 - Picks a camouflage site that supports TLS 1.3 + HTTP/2 and answers fastest from your server (override with `--sni host`).
 - Generates a REALITY X25519 key pair, a UUID and a short ID (and for Hysteria2 a password plus a self-signed ECDSA certificate that the client pins).

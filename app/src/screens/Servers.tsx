@@ -229,7 +229,7 @@ export function AddServer({ nav }: { nav: Nav }) {
             <span className="value" style={{ fontWeight: 540 }}>
               Set up my own server
             </span>
-            <span className="sub">One script for a Debian or Ubuntu VPS</span>
+            <span className="sub">One script for a Debian, Ubuntu or Arch Linux VPS</span>
           </span>
           <span className="trail">
             <Icon name="chevron" />
@@ -262,7 +262,7 @@ export function ServerSetup({ nav }: { nav: Nav }) {
       <div className="steps">
         <div className="card step">
           <h3>Get a VPS</h3>
-          <p>Any provider works. Choose Debian 12/13 or Ubuntu 22.04/24.04, 512 MB RAM or more, located where you want your exit IP to be. Note its IP address and root (or sudo) login.</p>
+          <p>Any provider works. Choose Debian 12/13, Ubuntu 22.04/24.04 or Arch Linux, 512 MB RAM or more, located where you want your exit IP to be. Note its IP address and root (or sudo) login.</p>
         </div>
         <div className="card step">
           <h3>Save the installer</h3>
