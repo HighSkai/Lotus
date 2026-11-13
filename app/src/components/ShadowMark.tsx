@@ -16,16 +16,16 @@ const swing = { type: "spring", stiffness: 260, damping: 22, mass: 0.9 } as cons
 export function ShadowMark({ className, lit = false }: { className?: string; lit?: boolean }) {
   const id = useId().replace(/:/g, "");
   return (
-    <svg className={className} viewBox="0 0 64 64" aria-hidden="true">
+    <svg className={className} viewBox="0 0 64 64" aria-hidden="true" style={{ overflow: "visible", filter: lit ? "drop-shadow(0 0 5px rgb(150 130 255 / 0.55))" : undefined, transition: "filter 300ms ease" }}>
       <defs>
         <linearGradient id={`sp${id}`} x1="0.5" y1="0" x2="0.5" y2="1">
-          <stop offset="0" stopColor="#B9A8FF" />
-          <stop offset="0.55" stopColor="#6E5CE6" />
-          <stop offset="1" stopColor="#3A3FB6" />
+          <stop offset="0" stopColor="#EEE8FF" />
+          <stop offset="0.5" stopColor="#B4A2FF" />
+          <stop offset="1" stopColor="#7466F0" />
         </linearGradient>
         <linearGradient id={`sm${id}`} x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0" stopColor="#A493F7" />
-          <stop offset="1" stopColor="#4A4FC4" />
+          <stop offset="0" stopColor="#D9D0FF" />
+          <stop offset="1" stopColor="#8576F4" />
         </linearGradient>
         <mask id={`sk${id}`}>
           <rect width="64" height="64" fill="#fff" />
@@ -37,12 +37,12 @@ export function ShadowMark({ className, lit = false }: { className?: string; lit
       </motion.g>
       <motion.g initial={false} animate={{ y: lit ? 0 : 1.5 }} transition={swing}>
         <g transform="translate(32 33) scale(0.82) translate(-32 -32)">
-          <path d={OUTER} fill="#3D3896" opacity="0.55" transform="rotate(-72 32 44)" />
-          <path d={OUTER} fill="#3D3896" opacity="0.55" transform="rotate(72 32 44)" />
-          <path d={SIDE} fill="#5A4FCF" opacity="0.9" transform="rotate(-38 32 44)" />
-          <path d={SIDE} fill="#5A4FCF" opacity="0.9" transform="rotate(38 32 44)" />
+          <path d={OUTER} fill="#7C6FE6" opacity="0.6" transform="rotate(-72 32 44)" />
+          <path d={OUTER} fill="#7C6FE6" opacity="0.6" transform="rotate(72 32 44)" />
+          <path d={SIDE} fill="#9E8DFB" opacity="0.92" transform="rotate(-38 32 44)" />
+          <path d={SIDE} fill="#9E8DFB" opacity="0.92" transform="rotate(38 32 44)" />
           <path d={CENTER} fill={`url(#sp${id})`} />
-          <path d="M32 9 C35 15 36 22 34.5 30" stroke="#fff" strokeOpacity="0.55" strokeWidth="1.2" fill="none" strokeLinecap="round" />
+          <path d="M32 9 C35 15 36 22 34.5 30" stroke="#fff" strokeOpacity="0.7" strokeWidth="1.2" fill="none" strokeLinecap="round" />
         </g>
       </motion.g>
     </svg>

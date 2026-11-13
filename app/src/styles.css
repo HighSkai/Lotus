@@ -93,6 +93,8 @@
 @property --track-off { syntax: "<color>"; inherits: true; initial-value: transparent; }
 @property --knob { syntax: "<color>"; inherits: true; initial-value: #fff; }
 @property --knob-shade { syntax: "<color>"; inherits: true; initial-value: #eef0fa; }
+@property --knob-hi { syntax: "<color>"; inherits: true; initial-value: rgb(255 255 255 / 0.9); }
+@property --knob-edge { syntax: "<color>"; inherits: true; initial-value: transparent; }
 @property --glow { syntax: "<color>"; inherits: true; initial-value: transparent; }
 @property --shadow { syntax: "<color>"; inherits: true; initial-value: transparent; }
 @property --good { syntax: "<color>"; inherits: true; initial-value: #2f9a72; }
@@ -109,7 +111,7 @@
     --popover var(--mode-fade), --fill var(--mode-fade), --fill-strong var(--mode-fade), --border var(--mode-fade), --input var(--mode-fade),
     --primary var(--mode-fade), --primary-foreground var(--mode-fade), --accent-2 var(--mode-fade),
     --on-a var(--mode-fade), --on-b var(--mode-fade), --on-c var(--mode-fade), --btn-a var(--mode-fade), --btn-b var(--mode-fade),
-    --track-off var(--mode-fade), --knob var(--mode-fade), --knob-shade var(--mode-fade),
+    --track-off var(--mode-fade), --knob var(--mode-fade), --knob-shade var(--mode-fade), --knob-hi var(--mode-fade), --knob-edge var(--mode-fade),
     --glow var(--mode-fade), --shadow var(--mode-fade),
     --good var(--mode-fade), --warn var(--mode-fade), --destructive var(--mode-fade);
 }
@@ -147,6 +149,8 @@
   --track-off: rgb(110 118 170 / 0.1);
   --knob: #ffffff;
   --knob-shade: #eef0fa;
+  --knob-hi: rgb(255 255 255 / 0.9);
+  --knob-edge: transparent;
   --glow: rgb(150 145 235 / 0.3);
   --shadow: rgb(60 70 140 / 0.16);
   --good: #2f9a72;
@@ -185,8 +189,10 @@
   --btn-a: #4a52b0;
   --btn-b: #7058c4;
   --track-off: rgb(150 150 225 / 0.08);
-  --knob: #eeedf8;
-  --knob-shade: #c9c5ec;
+  --knob: #2a2b47;
+  --knob-shade: #121326;
+  --knob-hi: rgb(255 255 255 / 0.16);
+  --knob-edge: rgb(170 160 255 / 0.22);
   --glow: rgb(110 88 230 / 0.36);
   --shadow: rgb(2 2 12 / 0.55);
   --good: #55c79b;
@@ -392,9 +398,10 @@
   box-shadow:
     0 10px 22px -8px var(--shadow),
     0 2px 4px -1px color-mix(in srgb, var(--shadow) 70%, transparent),
-    inset 0 1px 0 rgb(255 255 255 / 0.9);
+    inset 0 1px 0 var(--knob-hi),
+    inset 0 0 0 1px var(--knob-edge);
 }
-.power[data-state="on"] .power-knob { box-shadow: 0 12px 26px -8px color-mix(in srgb, var(--glow) 90%, black), inset 0 1px 0 rgb(255 255 255 / 0.9); }
+.power[data-state="on"] .power-knob { box-shadow: 0 12px 26px -8px color-mix(in srgb, var(--glow) 90%, black), inset 0 1px 0 var(--knob-hi), inset 0 0 0 1px var(--knob-edge); }
 .power-knob svg { width: 40px; height: 40px; transition: filter 300ms ease, opacity 300ms ease; }
 .power[data-state="off"] .power-knob svg,
 .power[data-state="error"] .power-knob svg { filter: saturate(0.35); opacity: 0.72; }

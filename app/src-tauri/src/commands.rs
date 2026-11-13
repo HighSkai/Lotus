@@ -305,6 +305,19 @@ pub async fn diagnostics(state: State<'_, AppState>) -> CmdResult<Value> {
     state.svc.request(Command::Diagnostics, Duration::from_secs(90)).await
 }
 
+/// Live connections of the running session (from the engine, never stored).
+#[tauri::command]
+pub async fn connections(state: State<'_, AppState>) -> CmdResult<Value> {
+    state.svc.request(Command::Connections, Duration::from_secs(5)).await
+}
+
+/// Check a saved server: authenticated handshake, what strangers see, exit address.
+#[tauri::command]
+pub async fn verify_server(state: State<'_, AppState>, id: String) -> CmdResult<Value> {
+    let profile = state.store.lock().unwrap().profiles.iter().find(|p| p.id == id).cloned().ok_or_else(|| err("not_found", "Server not found"))?;
+    state.svc.request(Command::VerifyServer { profile }, Duration::from_secs(60)).await
+}
+
 #[tauri::command]
 pub async fn speed_test(state: State<'_, AppState>) -> CmdResult<Value> {
     state.svc.request(Command::SpeedTest, Duration::from_secs(90)).await

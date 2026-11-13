@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
-import { ArrowDown, ArrowUp, Globe, Lock, Server, Shield, ShieldCheck, TriangleAlert, Wrench } from "lucide-react";
+import { ArrowDown, ArrowUp, Globe, Lock, Server, Shield, ShieldCheck, SquareTerminal, TriangleAlert, Wrench } from "lucide-react";
 import { NavRow, Notice, Pill, SettingRow } from "@/components/Controls";
 import { PowerSwitch, type Visual } from "@/components/PowerSwitch";
 import { SessionStats } from "@/components/SessionStats";
@@ -168,6 +168,7 @@ export function Home({ nav }: { nav: Nav }) {
               <SettingRow icon={Globe} kicker="Exit IP" label={running && live?.exit?.ipv4 ? live.exit.ipv4 : "—"} mono={running && !!live?.exit?.ipv4}>
                 {running && live?.exit?.country && <Pill tone="accent">{country(live.exit.country)}</Pill>}
               </SettingRow>
+              {selected && <NavRow icon={SquareTerminal} kicker="Live console" label="Traffic & server check" onClick={() => nav.push({ name: "console" })} />}
             </Card>
           )}
         </motion.div>

@@ -11,6 +11,7 @@ Nothing. There is no account, no analytics, no telemetry, no crash reporting and
   - The privacy check (only when you run it) queries `o-o.myaddr.l.google.com` (which reports the resolver's IP) and Team Cymru's DNS service (IP → network owner).
   - The speed test (only when you run it) uses `speed.cloudflare.com`.
   - Update checks (from 1.2.0; on by default, switch off in **Settings → Updates**): shortly after start and every 6 hours, LOTUS fetches `latest.json` from the latest GitHub release (`github.com`, served from GitHub's download host). The request carries nothing beyond what any HTTPS request reveals, such as your IP address. A newer installer is downloaded from the same release and checked against the LOTUS update key built into the app; it only runs when you choose **Restart to update** and approve the Windows prompt.
+- **Live console** (SHADOW): while that screen is open, the app asks the service once a second for the engine's list of open connections (destination and byte counts) to draw it. The list lives in memory only and is never written to disk or logged. **Verify server** makes one handshake with your server, one ordinary HTTPS visit to its port (to show what a stranger sees) and one visit to the camouflage site for comparison.
 - Your chosen DNS resolver sees your lookups (encrypted in transit), and in SHADOW your VPS provider sees where your traffic goes. Choose providers you trust.
 
 ## Security model

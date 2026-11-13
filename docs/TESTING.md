@@ -118,3 +118,22 @@ The delay test through VLESS was found to report success for **plain-HTTP** URLs
 - Long-duration soak testing.
 
 One anomaly was observed once: right after a SHADOW connect, a single IPv6 download stalled (1 byte in 8 s). It didn't reproduce in the following 6 IPv4 and IPv6 runs.
+
+## Wire-level audit (v1.2.0 service, November 2026)
+
+Every resolver and protocol, and SHADOW through a real Google Cloud VPS (VLESS · REALITY · Vision), checked with packet captures of the physical network card (Wireshark `dumpcap`/`tshark`). Unique random markers were sent in DNS names, URLs and HTTP bodies, and every captured byte was searched for them. The same request sent without LOTUS confirmed the method sees plaintext.
+
+| Check | Result |
+|---|---|
+| 16 LOTUS combinations (5 resolvers × DoH/DoH3/DoT where offered, plus 3 malware-filter variants) | Each sent traffic only to the selected resolver's address, on the right port (TCP 443 / UDP 443 QUIC v1 / TCP 853), with the right SNI and TLS 1.3 |
+| Resolver identity (`o-o.myaddr.l.google.com` → network owner) | Matched the selected operator every time; Quad9 itself reported `doh` / `dot` |
+| Markers in cleartext, LOTUS | 0 in every case; 0 plaintext DNS packets in a 21 s steady-state capture (1,338 packets) |
+| Plaintext DNS to another server, LOTUS | Blocked |
+| SHADOW: bytes on the wire | 99.7% to the VPS; 0 packets left to anywhere else (IPv4 or IPv6) |
+| SHADOW: what the tunnel looks like | TLS 1.3, SNI of the camouflage site, Chrome-style ClientHello, TCP 443 only |
+| SHADOW: plain-HTTP marker and POST body | Visible without LOTUS (5 and 2 packets); 0 with SHADOW, while the website still received them from the VPS |
+| SHADOW: DNS and UDP (NTP) | Carried inside the tunnel; 0 port-53 or UDP-123 packets on the wire |
+| SHADOW: kill switch bypass (IPv4 and IPv6 bound to the physical card) | Blocked; LAN still reachable with *Allow local network* |
+| REALITY server probed by a stranger | Served the camouflage site's genuine certificate, byte-identical to the real site's; full HTTPS page returned |
+
+Finding: with a server that has no IPv6, an app that cached an IPv6 address *before* connecting has its IPv6 connection accepted and then reset, rather than refused. That's one failed request, not a leak. New lookups return IPv4 only because LOTUS flushes the Windows DNS cache and the tunnel's DNS returns no IPv6 answers.

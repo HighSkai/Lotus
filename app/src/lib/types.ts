@@ -183,3 +183,27 @@ export interface UpdateInfo {
   error: string | null;
   checked_at: number | null;
 }
+
+export interface ConnInfo {
+  id: string;
+  host: string;
+  port: number;
+  network: string;
+  route: string;
+  upload: number;
+  download: number;
+  started: string;
+}
+
+export interface ConnectionsSnapshot {
+  active: boolean;
+  connections: ConnInfo[];
+  upload_total: number;
+  download_total: number;
+}
+
+export interface VerifyReport {
+  protocol: string;
+  checks: Check[];
+  generated_at: number;
+}

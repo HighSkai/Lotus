@@ -17,9 +17,10 @@ import { AddServer, Servers, ServerSetup } from "./screens/Servers";
 import { ServerEditor } from "./screens/ServerEditor";
 import { Diagnostics, SpeedTest } from "./screens/Tools";
 import { Updates } from "./screens/Updates";
+import { Console } from "./screens/Console";
 
 export type Route =
-  | { name: "settings" | "general" | "dns" | "connection" | "killswitch" | "servers" | "add-server" | "setup" | "diagnostics" | "speed" | "advanced" | "about" | "logs" | "updates" }
+  | { name: "settings" | "general" | "dns" | "connection" | "killswitch" | "servers" | "add-server" | "setup" | "diagnostics" | "speed" | "advanced" | "about" | "logs" | "updates" | "console" }
   | { name: "edit-server"; id?: string };
 
 export interface Nav {
@@ -61,6 +62,8 @@ function Screen({ route, nav }: { route: Route; nav: Nav }) {
       return <About nav={nav} />;
     case "updates":
       return <Updates nav={nav} />;
+    case "console":
+      return <Console nav={nav} />;
   }
 }
 

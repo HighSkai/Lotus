@@ -10,6 +10,8 @@ import type {
   SpeedResult,
   TestResult,
   UpdateInfo,
+  ConnectionsSnapshot,
+  VerifyReport,
 } from "./types";
 
 export function errorText(e: unknown): string {
@@ -34,6 +36,8 @@ export const api = {
   copyText: (text: string) => invoke<void>("copy_text", { text }),
   diagnostics: () => invoke<DiagnosticsReport>("diagnostics"),
   speedTest: () => invoke<SpeedResult>("speed_test"),
+  connections: () => invoke<ConnectionsSnapshot>("connections"),
+  verifyServer: (id: string) => invoke<VerifyReport>("verify_server", { id }),
   logs: () => invoke<string[]>("logs"),
   serverScript: () => invoke<string>("server_script"),
   saveServerScript: () => invoke<string | null>("save_server_script"),

@@ -57,6 +57,8 @@ pub struct Inner {
     /// Per-profile result of the IPv6 egress probe (does the exit server have IPv6?).
     pub server_ipv6: Mutex<std::collections::HashMap<String, bool>>,
     test_slots: Semaphore,
+    /// Controller API of the engine carrying the current session (for the live console).
+    pub clash: Mutex<Option<engine::Clash>>,
 }
 
 #[derive(Clone)]
@@ -87,6 +89,7 @@ impl Controller {
             origin: Mutex::new(Origin::default()),
             server_ipv6: Mutex::new(Default::default()),
             test_slots: Semaphore::new(2),
+            clash: Mutex::new(None),
         })))
     }
 
@@ -205,6 +208,16 @@ impl Controller {
 
     pub async fn shutdown(&self) {
         self.stop_session(true).await;
+    }
+
+    /// Live connections of the running session; empty when nothing is connected.
+    pub async fn connections(&self) -> ConnectionsSnapshot {
+        let clash = self.0.clash.lock().unwrap().clone();
+        let Some(clash) = clash else { return ConnectionsSnapshot::default() };
+        match clash.connections().await {
+            Ok(v) => engine::parse_connections(&v),
+            Err(_) => ConnectionsSnapshot::default(),
+        }
     }
 
     pub async fn test_profile(&self, profile: ServerProfile) -> Result<TestResult, ErrorInfo> {

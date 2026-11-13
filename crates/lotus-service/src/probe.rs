@@ -84,6 +84,42 @@ pub async fn tcp_ping(host: &str, port: u16, timeout: Duration) -> Result<u32> {
 
 /// On-demand throughput test against Cloudflare's speed test endpoints.
 /// Never runs in the background.
+/// What an unauthenticated visitor sees on a server's TLS port.
+pub struct StrangerView {
+    pub status: u16,
+    /// SHA-256 of the leaf certificate (hex), already verified for the SNI.
+    pub fingerprint: String,
+}
+
+fn cert_fingerprint(resp: &reqwest::Response) -> Option<String> {
+    use sha2::Digest;
+    let der = resp.extensions().get::<reqwest::tls::TlsInfo>()?.peer_certificate()?.to_vec();
+    Some(hex::encode(sha2::Sha256::digest(der)))
+}
+
+/// Plain HTTPS visit to `server:port` presenting `sni`, with full certificate
+/// validation (the certificate must be valid for `sni`).
+pub async fn stranger_view(server: &str, port: u16, sni: &str) -> Result<StrangerView> {
+    let addr = tokio::net::lookup_host((server, port)).await?.next().ok_or_else(|| anyhow!("can't resolve {server}"))?;
+    let client = reqwest::Client::builder()
+        .no_proxy()
+        .tls_info(true)
+        .resolve(sni, addr)
+        .timeout(Duration::from_secs(12))
+        .redirect(reqwest::redirect::Policy::none())
+        .build()?;
+    let resp = client.get(format!("https://{sni}:{port}/")).send().await?;
+    let fingerprint = cert_fingerprint(&resp).ok_or_else(|| anyhow!("no certificate presented"))?;
+    Ok(StrangerView { status: resp.status().as_u16(), fingerprint })
+}
+
+/// Certificate fingerprint the real site serves (normal DNS, port 443).
+pub async fn site_fingerprint(host: &str) -> Result<String> {
+    let client = reqwest::Client::builder().no_proxy().tls_info(true).timeout(Duration::from_secs(12)).redirect(reqwest::redirect::Policy::none()).build()?;
+    let resp = client.get(format!("https://{host}/")).send().await?;
+    cert_fingerprint(&resp).ok_or_else(|| anyhow!("no certificate presented"))
+}
+
 pub async fn speed_test() -> SpeedResult {
     let mut r = SpeedResult::default();
     let http = reqwest::Client::builder().no_proxy().timeout(Duration::from_secs(20)).build().expect("http client");
@@ -168,4 +204,20 @@ pub async fn first_txt(resolver: SocketAddr, name: &str) -> Option<String> {
         dnsmsg::Answer::Txt(t) => Some(t),
         _ => None,
     })
+}
+
+#[cfg(test)]
+mod live_tests {
+    /// Live check against a real server: `LOTUS_PROBE_SERVER=1.2.3.4 LOTUS_PROBE_SNI=www.apple.com
+    /// cargo test -p lotus-service stranger_view_live -- --ignored --nocapture`
+    #[tokio::test]
+    #[ignore]
+    async fn stranger_view_live() {
+        let server = std::env::var("LOTUS_PROBE_SERVER").expect("LOTUS_PROBE_SERVER");
+        let sni = std::env::var("LOTUS_PROBE_SNI").expect("LOTUS_PROBE_SNI");
+        let v = super::stranger_view(&server, 443, &sni).await.expect("stranger view");
+        let real = super::site_fingerprint(&sni).await.expect("real site");
+        println!("status={} fingerprint={} real={} identical={}", v.status, v.fingerprint, real, v.fingerprint == real);
+        assert_eq!(v.fingerprint, real);
+    }
 }

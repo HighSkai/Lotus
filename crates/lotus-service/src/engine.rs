@@ -125,6 +125,11 @@ impl Clash {
         Err(anyhow!("{}", v.get("message").and_then(Value::as_str).unwrap_or("delay test failed")))
     }
 
+    /// Snapshot of live connections (the engine's own bookkeeping).
+    pub async fn connections(&self) -> Result<Value> {
+        Ok(self.get("/connections").timeout(Duration::from_secs(2)).send().await?.error_for_status()?.json().await?)
+    }
+
     /// Stream per-second traffic counters until the connection ends.
     pub async fn traffic<F: FnMut(u64, u64)>(&self, mut on: F) -> Result<()> {
         let resp = self.get("/traffic").send().await?.error_for_status()?;
@@ -282,5 +287,56 @@ impl Engine {
         if let Some(t) = self.task.take() {
             let _ = tokio::time::timeout(Duration::from_secs(10), t).await;
         }
+    }
+}
+
+/// Turn the controller API's `/connections` answer into the IPC snapshot.
+pub fn parse_connections(v: &Value) -> lotus_core::ipc::ConnectionsSnapshot {
+    let num = |v: &Value| v.as_u64().or_else(|| v.as_str().and_then(|s| s.parse().ok())).unwrap_or(0);
+    let text = |v: &Value| v.as_str().unwrap_or("").to_string();
+    let mut list: Vec<lotus_core::ipc::ConnInfo> = v
+        .get("connections")
+        .and_then(Value::as_array)
+        .map(|a| {
+            a.iter()
+                .map(|c| {
+                    let m = &c["metadata"];
+                    let host = text(&m["host"]);
+                    lotus_core::ipc::ConnInfo {
+                        id: text(&c["id"]),
+                        host: if host.is_empty() { text(&m["destinationIP"]) } else { host },
+                        port: num(&m["destinationPort"]) as u16,
+                        network: text(&m["network"]),
+                        route: c["chains"].as_array().map(|ch| ch.iter().filter_map(Value::as_str).collect::<Vec<_>>().join(" > ")).unwrap_or_default(),
+                        upload: num(&c["upload"]),
+                        download: num(&c["download"]),
+                        started: text(&c["start"]),
+                    }
+                })
+                .collect()
+        })
+        .unwrap_or_default();
+    list.sort_by(|a, b| (b.upload + b.download).cmp(&(a.upload + a.download)));
+    lotus_core::ipc::ConnectionsSnapshot { active: true, connections: list, upload_total: num(&v["uploadTotal"]), download_total: num(&v["downloadTotal"]) }
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn parses_engine_connections() {
+        // Same shape as sing-box 1.14's /connections (ports arrive as strings).
+        let v: serde_json::Value = serde_json::from_str(r#"{"connections":[
+            {"chains":["proxy"],"download":9278106,"id":"a","metadata":{"destinationIP":"","destinationPort":"443","dnsMode":"normal","host":"speed.example.net","network":"tcp","processPath":"","sourceIP":"172.19.0.1","sourcePort":"50000","type":"tun/tun-in"},"rule":"final","rulePayload":"","start":"2026-11-13T07:57:07Z","upload":674},
+            {"chains":["direct"],"download":10,"id":"b","metadata":{"destinationIP":"192.168.1.10","destinationPort":"80","host":"","network":"udp"},"start":"2026-11-13T07:57:08Z","upload":5}
+        ],"downloadTotal":9278116,"memory":0,"uploadTotal":679}"#).unwrap();
+        let s = super::parse_connections(&v);
+        assert!(s.active);
+        assert_eq!(s.connections.len(), 2);
+        assert_eq!(s.connections[0].host, "speed.example.net");
+        assert_eq!(s.connections[0].port, 443);
+        assert_eq!(s.connections[0].route, "proxy");
+        assert_eq!(s.connections[1].host, "192.168.1.10");
+        assert_eq!(s.connections[1].network, "udp");
+        assert_eq!((s.upload_total, s.download_total), (679, 9278116));
     }
 }

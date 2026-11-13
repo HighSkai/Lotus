@@ -50,6 +50,7 @@ pub async fn run_lotus(inner: Arc<Inner>, opts: LotusOptions, cancel: Cancellati
 }
 
 fn finish(inner: &Inner, mode: Mode, res: Result<(), ErrorInfo>, keep: &AtomicBool) {
+    *inner.clash.lock().unwrap() = None;
     match res {
         Ok(()) => inner.update(|s| {
             s.state = ConnState::Disconnected;
@@ -133,6 +134,7 @@ async fn lotus_session(inner: &Arc<Inner>, opts: &LotusOptions, cancel: &Cancell
         _ = cancel.cancelled() => return Ok(()),
         r = start_lotus_engine(inner, opts, with_v6) => r?,
     };
+    *inner.clash.lock().unwrap() = Some(eng.clash.clone());
     if opts.block_plain_dns {
         if let Err(e) = inner.enable_dns_guard() {
             eng.stop().await;
@@ -196,6 +198,7 @@ async fn lotus_session(inner: &Arc<Inner>, opts: &LotusOptions, cancel: &Cancell
             match start_lotus_engine(inner, opts, with_v6).await {
                 Ok(e) => {
                     eng = e;
+                    *inner.clash.lock().unwrap() = Some(eng.clash.clone());
                     inner.update(|s| s.state = ConnState::Connected);
                     break;
                 }
@@ -379,6 +382,7 @@ async fn connect_once(inner: &Arc<Inner>, profile: &ServerProfile, opts: &Shadow
             tokio::time::sleep(Duration::from_secs(2)).await;
         }
     });
+    *inner.clash.lock().unwrap() = Some(eng.clash.clone());
     Ok(Live { engine: eng, traffic, ipv6 })
 }
 

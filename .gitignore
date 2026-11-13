@@ -16,3 +16,6 @@
 
 # Local editor/tool configuration
 /.impeccable/
+
+# Local audit reports and packet captures (contain your IP addresses)
+/audit/

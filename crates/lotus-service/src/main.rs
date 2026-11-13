@@ -21,6 +21,7 @@ mod paths;
 mod probe;
 mod session;
 mod state;
+mod verify;
 #[cfg(windows)]
 mod win;
 

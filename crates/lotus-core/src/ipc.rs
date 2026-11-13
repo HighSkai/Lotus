@@ -38,6 +38,10 @@ pub enum Command {
     Diagnostics,
     /// Recent engine messages (warnings and errors only, secrets redacted).
     Logs,
+    /// Live connections through the running engine (read on demand, never logged).
+    Connections,
+    /// Check what the server really is: authenticated handshake, camouflage, exit.
+    VerifyServer { profile: ServerProfile },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -173,6 +177,39 @@ pub struct Check {
 pub struct DiagnosticsReport {
     pub mode: Option<Mode>,
     pub state: ConnState,
+    pub checks: Vec<Check>,
+    pub generated_at: u64,
+}
+
+/// One live connection as seen by the engine. Held in memory only while the app asks.
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+pub struct ConnInfo {
+    pub id: String,
+    /// Sniffed domain, or the destination IP when there is none.
+    pub host: String,
+    pub port: u16,
+    /// "tcp" or "udp".
+    pub network: String,
+    /// Outbound chain, e.g. "proxy" (through your server), "direct" or "block".
+    pub route: String,
+    pub upload: u64,
+    pub download: u64,
+    /// When the connection opened (RFC 3339).
+    pub started: String,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+pub struct ConnectionsSnapshot {
+    pub active: bool,
+    pub connections: Vec<ConnInfo>,
+    pub upload_total: u64,
+    pub download_total: u64,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+pub struct VerifyReport {
+    /// e.g. "VLESS · REALITY · Vision over TCP 443".
+    pub protocol: String,
     pub checks: Vec<Check>,
     pub generated_at: u64,
 }

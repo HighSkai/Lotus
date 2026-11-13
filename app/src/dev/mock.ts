@@ -208,6 +208,27 @@ export async function installMock() {
           return { download_mbps: 412.6, upload_mbps: 88.1, latency_ms: 36, bytes_down: 40_000_000, bytes_up: 9_000_000, message: "Measured with speed.cloudflare.com." };
         case "logs":
           return [];
+        case "connections": {
+          if (status.mode !== "shadow" || status.state !== "connected") return { active: false, connections: [], upload_total: 0, download_total: 0 };
+          const t = Math.floor(Date.now() / 1000);
+          const hosts = [["github.com", 443], ["api.anthropic.com", 443], ["www.youtube.com", 443], ["i.ytimg.com", 443], ["open.spotify.com", 443], ["time.cloudflare.com", 123], ["192.168.1.254", 80], ["fonts.gstatic.com", 443], ["news.ycombinator.com", 443]] as const;
+          const conns = hosts
+            .filter((_, i) => (t + i * 3) % 7 !== 0)
+            .map(([host, port], i) => ({ id: `${host}-${Math.floor((t + i * 3) / 7)}`, host, port, network: port === 123 ? "udp" : "tcp", route: host.startsWith("192.") ? "direct" : "proxy", upload: (i + 1) * 4_200 * ((t % 30) + 1), download: (i + 1) * 380_000 * ((t % 30) + 1), started: new Date().toISOString() }));
+          return { active: true, connections: conns.sort((a, b) => b.upload + b.download - (a.upload + a.download)), upload_total: status.traffic.up_total, download_total: status.traffic.down_total };
+        }
+        case "verify_server":
+          await new Promise((r) => setTimeout(r, 1400));
+          return {
+            protocol: "VLESS · REALITY · Vision over TCP 443",
+            generated_at: Date.now(),
+            checks: [
+              { id: "handshake", title: "Authenticated handshake", outcome: "pass", summary: "Your server accepted LOTUS's key (139 ms round trip)", detail: "REALITY only completes when the server proves it holds the private key matching this profile's public key, so this is your REALITY server and not an impostor." },
+              { id: "camouflage", title: "What strangers see", outcome: "pass", summary: "The real www.example.com", detail: "A visitor without your key gets www.example.com's own valid certificate (SHA-256 35664ec6ea5bdb84…), identical to the one the real site serves and HTTP 200. Nothing reveals a proxy." },
+              { id: "exit", title: "Exit address", outcome: status.state === "connected" ? "pass" : "info", summary: status.state === "connected" ? "Websites see 203.0.113.10" : "Connect SHADOW through this server to check", detail: status.state === "connected" ? "That's your server's address, so traffic is leaving through it." : "" },
+              { id: "encryption", title: "Encryption", outcome: "info", summary: "VLESS · REALITY · Vision over TCP 443", detail: "TLS 1.3 (REALITY): X25519 key exchange authenticated with your server's key, AES-GCM or ChaCha20 for data. XTLS-Vision avoids double-encrypting traffic that is already TLS." },
+            ],
+          };
         case "update_status":
           return update;
         case "check_update":

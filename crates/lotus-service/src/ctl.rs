@@ -17,7 +17,9 @@ const USAGE: &str = "usage: lotus-service ctl <command>
   disconnect
   speed                          run a speed test over the current connection
   diag                           run leak diagnostics
-  logs                           recent engine/service messages";
+  logs                           recent engine/service messages
+  connections                    live connections through the running session
+  verify <link | @file>          check the server: authenticated handshake, what strangers see, exit";
 
 fn load_profile(arg: &str) -> Result<ServerProfile> {
     let text = if let Some(path) = arg.strip_prefix('@') { std::fs::read_to_string(path).with_context(|| format!("read {path}"))? } else { arg.to_string() };
@@ -53,6 +55,8 @@ async fn run(args: &[String]) -> Result<()> {
         "speed" => Command::SpeedTest,
         "diag" => Command::Diagnostics,
         "logs" => Command::Logs,
+        "connections" => Command::Connections,
+        "verify" => Command::VerifyServer { profile: load_profile(rest.first().context("missing link or @file")?)? },
         "lotus" => {
             let mut o = LotusOptions::default();
             if let Some(p) = opt(rest, "--provider") {

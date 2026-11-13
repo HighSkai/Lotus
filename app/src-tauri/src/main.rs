@@ -73,6 +73,8 @@ fn main() {
             commands::copy_text,
             commands::diagnostics,
             commands::speed_test,
+            commands::connections,
+            commands::verify_server,
             commands::logs,
             commands::save_server_script,
             commands::server_script,

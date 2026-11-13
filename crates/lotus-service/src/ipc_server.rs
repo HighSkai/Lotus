@@ -118,5 +118,10 @@ async fn dispatch(ctrl: &Controller, cmd: Command) -> Result<Value, ErrorInfo> {
         Command::SpeedTest => to_value(crate::probe::speed_test().await),
         Command::Diagnostics => to_value(crate::diagnostics::run(ctrl).await),
         Command::Logs => to_value(ctrl.inner().logs.snapshot()),
+        Command::Connections => to_value(ctrl.connections().await),
+        Command::VerifyServer { profile } => {
+            lotus_core::validate::validate_profile(&profile).map_err(|e| crate::controller::fail("invalid_profile", e.to_string()))?;
+            to_value(crate::verify::run(ctrl, profile).await)
+        }
     }
 }
