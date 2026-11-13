@@ -171,4 +171,4 @@ Generated configs run against the live engine (three lookups each: one popular, 
 | Cloudflare, DNS-over-HTTPS/3 | Yes | 4.9 KB up, 8.1 KB down | 9 ms |
 | Quad9, DNS-over-TLS | Yes | 6.7 KB up, 17.9 KB down | 72 ms |
 
-The latency shown for LOTUS is that uncached lookup, repeated every 20 seconds. `sing-box check` passes for every provider and transport with the relay (`engine_check`).
+The latency shown for LOTUS is that uncached lookup, repeated every 20 seconds. From 1.5.1 it is the middle of three such lookups: over 25 readings, one lookup per reading spread 8-83 ms (one slow outlier), the middle of three 8-18 ms, with the same typical value (about 10 ms). `sing-box check` passes for every provider and transport with the relay (`engine_check`).

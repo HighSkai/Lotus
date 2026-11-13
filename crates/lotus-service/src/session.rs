@@ -36,15 +36,38 @@ fn free_loopback_port(network: &str) -> Option<u16> {
     }
 }
 
-/// Time one lookup the resolver can't answer from LOTUS's cache: a random
-/// name under the reserved example.com zone. This is the round trip a page
-/// pays for a name it hasn't visited recently.
+/// Time lookups the resolver can't answer from LOTUS's cache: random names
+/// under the reserved example.com zone. This is the round trip a page pays
+/// for a name it hasn't visited recently. One lookup now and then can be slow
+/// (a lost packet, a busy resolver), so report the middle of three.
 async fn lotus_latency() -> Option<u32> {
-    let name = format!("lotus-{:08x}.example.com", rand::random::<u32>());
-    let t = std::time::Instant::now();
-    match probe::dns_query("127.0.0.1:53".parse().unwrap(), &name, lotus_core::dnsmsg::TYPE_A, Duration::from_secs(4)).await {
-        Ok(_) => Some(t.elapsed().as_millis().max(1) as u32),
-        Err(_) => None,
+    let mut samples = Vec::with_capacity(3);
+    for _ in 0..3 {
+        let name = format!("lotus-{:08x}.example.com", rand::random::<u32>());
+        let t = std::time::Instant::now();
+        if probe::dns_query("127.0.0.1:53".parse().unwrap(), &name, lotus_core::dnsmsg::TYPE_A, Duration::from_secs(4)).await.is_ok() {
+            samples.push(t.elapsed().as_millis().max(1) as u32);
+        }
+    }
+    median(&mut samples)
+}
+
+/// Middle value (lower middle for an even count); `None` when empty.
+fn median(v: &mut [u32]) -> Option<u32> {
+    v.sort_unstable();
+    v.get(v.len().saturating_sub(1) / 2).copied()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::median;
+
+    #[test]
+    fn median_ignores_one_slow_sample() {
+        assert_eq!(median(&mut [12, 26, 11]), Some(12));
+        assert_eq!(median(&mut [40, 12]), Some(12));
+        assert_eq!(median(&mut [9]), Some(9));
+        assert_eq!(median(&mut []), None);
     }
 }
 
