@@ -1,9 +1,13 @@
 import { useEffect, useState } from "react";
-import { Icon } from "../components/Icon";
-import { NavRow, Page, RadioRow, Seg, SettingRow, ToggleRow } from "../components/Controls";
-import { api, errorText } from "../lib/api";
-import { toast, updateSettings, useStore } from "../lib/store";
-import type { AppSettings, DnsProviderId, DnsTransport } from "../lib/types";
+import { AppWindow, Copy, Cpu, Eye, FileText, Gauge, Info, Lock, Power, RefreshCw, Server, Shield, ShieldCheck, SlidersHorizontal, Wrench, Zap } from "lucide-react";
+import { Advanced, Hint, IconButton, List, NavRow, Page, Pill, RadioList, Seg, SettingRow, ToggleRow } from "@/components/Controls";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { api, errorText } from "@/lib/api";
+import { toast, updateSettings, useStore } from "@/lib/store";
+import type { AppSettings, DnsProviderId, DnsTransport } from "@/lib/types";
 import type { Nav } from "../App";
 
 async function save(fn: (s: AppSettings) => AppSettings) {
@@ -18,7 +22,7 @@ async function save(fn: (s: AppSettings) => AppSettings) {
 function useReconnectHint(scope: "lotus" | "shadow") {
   const status = useStore((s) => s.status);
   const active = status?.mode === scope && (status.state === "connected" || status.state === "reconnecting");
-  return active ? <p className="hint">Changes apply the next time you connect.</p> : null;
+  return active ? <Hint>Changes apply the next time you connect.</Hint> : null;
 }
 
 export function SettingsIndex({ nav }: { nav: Nav }) {
@@ -28,19 +32,19 @@ export function SettingsIndex({ nav }: { nav: Nav }) {
   const pname = settings.lotus.provider === "custom" ? "Custom" : providers.find((p) => p.id === settings.lotus.provider)?.name;
   return (
     <Page title="Settings" onBack={nav.back}>
-      <div className="card list">
-        <NavRow icon="sliders" label="General" sub="Startup, window and tray" onClick={() => nav.push({ name: "general" })} />
-        <NavRow icon="lock" label="DNS & Privacy" sub={`LOTUS · ${pname}`} onClick={() => nav.push({ name: "dns" })} />
-        <NavRow icon="zap" label="Connection" sub="SHADOW tunnel behaviour" onClick={() => nav.push({ name: "connection" })} />
-        <NavRow icon="shield" label="Kill switch" sub={settings.shadow.kill_switch ? "On" : "Off"} onClick={() => nav.push({ name: "killswitch" })} />
-        <NavRow icon="server" label="Server profiles" sub={`${profiles.length} saved`} onClick={() => nav.push({ name: "servers" })} />
-      </div>
-      <div className="card list">
-        <NavRow icon="shieldCheck" label="Privacy check" sub="DNS, IPv4 and IPv6 leak tests" onClick={() => nav.push({ name: "diagnostics" })} />
-        <NavRow icon="speed" label="Speed test" sub="Measure on demand" onClick={() => nav.push({ name: "speed" })} />
-        <NavRow icon="cpu" label="Advanced" sub="Service, engine and logs" onClick={() => nav.push({ name: "advanced" })} />
-        <NavRow icon="info" label="About LOTUS" onClick={() => nav.push({ name: "about" })} />
-      </div>
+      <List>
+        <NavRow icon={SlidersHorizontal} label="General" onClick={() => nav.push({ name: "general" })} />
+        <NavRow icon={Lock} label="DNS & Privacy" value={pname} onClick={() => nav.push({ name: "dns" })} />
+        <NavRow icon={Zap} label="Connection" onClick={() => nav.push({ name: "connection" })} />
+        <NavRow icon={Shield} label="Kill switch" value={settings.shadow.kill_switch ? "On" : "Off"} onClick={() => nav.push({ name: "killswitch" })} />
+        <NavRow icon={Server} label="Servers" value={profiles.length || undefined} onClick={() => nav.push({ name: "servers" })} />
+      </List>
+      <List>
+        <NavRow icon={ShieldCheck} label="Privacy check" onClick={() => nav.push({ name: "diagnostics" })} />
+        <NavRow icon={Gauge} label="Speed test" onClick={() => nav.push({ name: "speed" })} />
+        <NavRow icon={Cpu} label="Advanced" onClick={() => nav.push({ name: "advanced" })} />
+        <NavRow icon={Info} label="About" onClick={() => nav.push({ name: "about" })} />
+      </List>
     </Page>
   );
 }
@@ -49,35 +53,35 @@ export function GeneralSettings({ nav }: { nav: Nav }) {
   const s = useStore((st) => st.settings)!;
   return (
     <Page title="General" onBack={nav.back}>
-      <div className="card list">
-        <ToggleRow icon="power" label="Launch at startup" sub="Start quietly in the tray when you sign in" checked={s.launch_at_startup} onChange={(v) => save((x) => ({ ...x, launch_at_startup: v }))} />
-        <ToggleRow icon="zap" label="Turn on when LOTUS starts" sub="Connect the selected mode automatically" checked={s.connect_on_launch} onChange={(v) => save((x) => ({ ...x, connect_on_launch: v }))} />
+      <List>
+        <ToggleRow icon={Power} label="Launch at startup" checked={s.launch_at_startup} onChange={(v) => save((x) => ({ ...x, launch_at_startup: v }))} />
+        <ToggleRow icon={Zap} label="Turn on when LOTUS starts" checked={s.connect_on_launch} onChange={(v) => save((x) => ({ ...x, connect_on_launch: v }))} />
         <ToggleRow
-          icon="refresh"
+          icon={RefreshCw}
           label="Stay protected after a restart"
-          sub="The service reconnects before you sign in"
+          sub="Reconnects before you sign in"
           checked={s.lotus.resume_on_boot && s.shadow.resume_on_boot}
           onChange={(v) => save((x) => ({ ...x, lotus: { ...x.lotus, resume_on_boot: v }, shadow: { ...x.shadow, resume_on_boot: v } }))}
         />
-      </div>
-      <div className="card list">
-        <ToggleRow icon="list" label="Keep running in the tray" sub="Closing the window doesn't quit LOTUS" checked={s.close_to_tray} onChange={(v) => save((x) => ({ ...x, close_to_tray: v }))} />
-        <ToggleRow icon="power" label="Turn off when quitting" sub="Otherwise protection keeps running without the window" checked={s.disconnect_on_quit} onChange={(v) => save((x) => ({ ...x, disconnect_on_quit: v }))} />
-      </div>
-      <div className="card list">
-        <SettingRow icon="eye" label="Animations">
+      </List>
+      <List>
+        <ToggleRow icon={AppWindow} label="Keep running in the tray" checked={s.close_to_tray} onChange={(v) => save((x) => ({ ...x, close_to_tray: v }))} />
+        <ToggleRow icon={Power} label="Turn off when quitting" checked={s.disconnect_on_quit} onChange={(v) => save((x) => ({ ...x, disconnect_on_quit: v }))} />
+      </List>
+      <List>
+        <SettingRow icon={Eye} label="Animations">
           <Seg
             label="Animations"
             value={s.motion}
             onChange={(v) => save((x) => ({ ...x, motion: v }))}
             options={[
               { value: "system", label: "System" },
-              { value: "reduce", label: "Reduced" },
+              { value: "reduce", label: "Less" },
               { value: "full", label: "Full" },
             ]}
           />
         </SettingRow>
-      </div>
+      </List>
     </Page>
   );
 }
@@ -88,86 +92,85 @@ export function DnsSettings({ nav }: { nav: Nav }) {
   const hint = useReconnectHint("lotus");
   const cur = providers.find((p) => p.id === s.lotus.provider);
   const [custom, setCustom] = useState(s.lotus.custom ?? { url: "", ip: "" });
-  const setProvider = (provider: DnsProviderId) =>
+  const setProvider = (provider: DnsProviderId) => {
+    if (provider === "custom") {
+      save((x) => ({ ...x, lotus: { ...x.lotus, provider: "custom", custom: x.lotus.custom ?? { url: "", ip: "" } } }));
+      return;
+    }
     save((x) => {
       const p = providers.find((q) => q.id === provider);
       let transport = x.lotus.transport;
       if (p && ((transport === "doh3" && !p.doh3) || (transport === "dot" && !p.dot))) transport = "doh";
       return { ...x, lotus: { ...x.lotus, provider, transport } };
     });
+  };
   return (
     <Page title="DNS & Privacy" onBack={nav.back}>
-      <p className="hint" style={{ marginTop: 0 }}>
-        LOTUS mode sends every DNS lookup through an encrypted resolver instead of your internet provider. It doesn't hide your IP address. For that, use SHADOW.
-      </p>
-      <div className="section-title">Resolver</div>
-      <div className="card list" role="radiogroup" aria-label="Resolver">
-        {providers.map((p) => (
-          <RadioRow key={p.id} label={p.name} sub={p.note} checked={s.lotus.provider === p.id} onSelect={() => setProvider(p.id)} />
-        ))}
-        <RadioRow label="Custom" sub="Your own DoH or DoT server" checked={s.lotus.provider === "custom"} onSelect={() => save((x) => ({ ...x, lotus: { ...x.lotus, provider: "custom", custom: x.lotus.custom ?? { url: "", ip: "" } } }))} />
-      </div>
+      <List title="Resolver">
+        <RadioList<DnsProviderId>
+          label="Resolver"
+          value={s.lotus.provider}
+          onChange={setProvider}
+          options={[...providers.map((p) => ({ value: p.id, label: p.name, sub: p.note })), { value: "custom" as const, label: "Custom", sub: "Your own DoH or DoT server" }]}
+        />
+      </List>
       {s.lotus.provider === "custom" && (
-        <div className="card" style={{ padding: 14, marginTop: 10 }}>
-          <div className="field">
-            <label htmlFor="cu">Resolver URL</label>
-            <input id="cu" className="input" placeholder="https://dns.example.net/dns-query or tls://dns.example.net" value={custom.url} onChange={(e) => setCustom({ ...custom, url: e.target.value })} />
+        <Card className="gap-3 p-4">
+          <div className="grid gap-1.5">
+            <Label htmlFor="cu" className="text-[12px] font-medium text-muted-foreground">
+              Resolver URL
+            </Label>
+            <Input id="cu" placeholder="https://dns.example.net/dns-query" value={custom.url} onChange={(e) => setCustom({ ...custom, url: e.target.value })} />
           </div>
-          <div className="field">
-            <label htmlFor="ci">Resolver IP address</label>
-            <input id="ci" className="input" placeholder="192.0.2.53" value={custom.ip} onChange={(e) => setCustom({ ...custom, ip: e.target.value })} />
+          <div className="grid gap-1.5">
+            <Label htmlFor="ci" className="text-[12px] font-medium text-muted-foreground">
+              Resolver IP address
+            </Label>
+            <Input id="ci" placeholder="192.0.2.53" value={custom.ip} onChange={(e) => setCustom({ ...custom, ip: e.target.value })} />
           </div>
-          <button className="btn small primary" onClick={() => save((x) => ({ ...x, lotus: { ...x.lotus, custom } }))}>
+          <Button size="sm" className="self-start" onClick={() => save((x) => ({ ...x, lotus: { ...x.lotus, custom } }))}>
             Save resolver
-          </button>
-          <p className="hint">The IP is used to reach the resolver, so no unencrypted lookup is needed first. The certificate is still verified against the host name.</p>
-        </div>
+          </Button>
+        </Card>
       )}
       {s.lotus.provider !== "custom" && (
-        <>
-          <div className="section-title">Protocol</div>
-          <div className="card list">
-            <SettingRow label="Encryption" sub={s.lotus.transport === "doh3" ? "Fastest over QUIC" : s.lotus.transport === "dot" ? "Dedicated port 853" : "Looks like normal web traffic"}>
-              <Seg<DnsTransport>
-                label="DNS protocol"
-                value={s.lotus.transport}
-                onChange={(v) => save((x) => ({ ...x, lotus: { ...x.lotus, transport: v } }))}
-                options={[
-                  { value: "doh", label: "HTTPS" },
-                  { value: "doh3", label: "HTTP/3", disabled: !cur?.doh3 },
-                  { value: "dot", label: "TLS", disabled: !cur?.dot },
-                ]}
-              />
-            </SettingRow>
-          </div>
-        </>
+        <List title="Protocol">
+          <SettingRow label="Encryption">
+            <Seg<DnsTransport>
+              label="DNS protocol"
+              value={s.lotus.transport}
+              onChange={(v) => save((x) => ({ ...x, lotus: { ...x.lotus, transport: v } }))}
+              options={[
+                { value: "doh", label: "HTTPS" },
+                { value: "doh3", label: "HTTP/3", disabled: !cur?.doh3 },
+                { value: "dot", label: "TLS", disabled: !cur?.dot },
+              ]}
+            />
+          </SettingRow>
+        </List>
       )}
-      <div className="section-title">Blocking</div>
-      <div className="card list">
-        <ToggleRow icon="eye" label="Block trackers & ads" sub="On-device list of known tracking domains" checked={s.lotus.block_trackers} onChange={(v) => save((x) => ({ ...x, lotus: { ...x.lotus, block_trackers: v } }))} />
+      <List title="Blocking">
+        <ToggleRow icon={Eye} label="Trackers & ads" checked={s.lotus.block_trackers} onChange={(v) => save((x) => ({ ...x, lotus: { ...x.lotus, block_trackers: v } }))} />
         <ToggleRow
-          icon="shield"
-          label="Block malicious domains"
-          sub={cur?.malware_variant ? (s.lotus.provider === "quad9" ? "Always on with Quad9" : `Uses ${cur.name}'s filtering resolver`) : "Not offered by this resolver"}
+          icon={Shield}
+          label="Malicious domains"
+          sub={!cur?.malware_variant ? "Not offered by this resolver" : s.lotus.provider === "quad9" ? "Always on with Quad9" : undefined}
           checked={s.lotus.provider === "quad9" || (s.lotus.block_malware && !!cur?.malware_variant)}
           disabled={!cur?.malware_variant || s.lotus.provider === "quad9"}
           onChange={(v) => save((x) => ({ ...x, lotus: { ...x.lotus, block_malware: v } }))}
         />
-      </div>
-      <details className="advanced">
-        <summary>
-          <Icon name="chevron" /> Advanced
-        </summary>
-        <div className="card list">
+      </List>
+      <Advanced>
+        <List>
           <ToggleRow
-            icon="lock"
+            icon={Lock}
             label="Block other DNS servers"
-            sub="Stops apps with hard-coded resolvers from sending unencrypted DNS"
+            sub="Stops apps with hard-coded resolvers"
             checked={s.lotus.block_plain_dns}
             onChange={(v) => save((x) => ({ ...x, lotus: { ...x.lotus, block_plain_dns: v } }))}
           />
-        </div>
-      </details>
+        </List>
+      </Advanced>
       {hint}
     </Page>
   );
@@ -180,10 +183,10 @@ export function ConnectionSettings({ nav }: { nav: Nav }) {
   const [mtu, setMtu] = useState(s.shadow.mtu ? String(s.shadow.mtu) : "");
   return (
     <Page title="Connection" onBack={nav.back}>
-      <div className="card list">
-        <ToggleRow icon="refresh" label="Reconnect automatically" sub="After network changes, sleep or a server hiccup" checked={s.shadow.auto_reconnect} onChange={(v) => save((x) => ({ ...x, shadow: { ...x.shadow, auto_reconnect: v } }))} />
-        <ToggleRow icon="eye" label="Block trackers & ads" sub="Also inside the tunnel" checked={s.shadow.block_trackers} onChange={(v) => save((x) => ({ ...x, shadow: { ...x.shadow, block_trackers: v } }))} />
-        <SettingRow icon="globe" label="IPv6" sub={s.shadow.ipv6 === "tunnel" ? "Tunnelled when your server has IPv6, otherwise blocked" : "Always blocked"}>
+      <List>
+        <ToggleRow icon={RefreshCw} label="Reconnect automatically" checked={s.shadow.auto_reconnect} onChange={(v) => save((x) => ({ ...x, shadow: { ...x.shadow, auto_reconnect: v } }))} />
+        <ToggleRow icon={Eye} label="Block trackers & ads" checked={s.shadow.block_trackers} onChange={(v) => save((x) => ({ ...x, shadow: { ...x.shadow, block_trackers: v } }))} />
+        <SettingRow icon={Server} label="IPv6" sub={s.shadow.ipv6 === "tunnel" ? "Blocked if your server lacks it" : undefined}>
           <Seg
             label="IPv6"
             value={s.shadow.ipv6}
@@ -194,20 +197,18 @@ export function ConnectionSettings({ nav }: { nav: Nav }) {
             ]}
           />
         </SettingRow>
-      </div>
-      <div className="section-title">DNS inside the tunnel</div>
-      <div className="card list" role="radiogroup" aria-label="Tunnel DNS">
-        {providers.map((p) => (
-          <RadioRow key={p.id} label={p.name} checked={s.shadow.dns_provider === p.id} onSelect={() => save((x) => ({ ...x, shadow: { ...x.shadow, dns_provider: p.id } }))} />
-        ))}
-      </div>
-      <p className="hint">Queries travel encrypted (DNS-over-HTTPS) through your server, so neither your ISP nor your VPS host can read them.</p>
-      <details className="advanced">
-        <summary>
-          <Icon name="chevron" /> Advanced
-        </summary>
-        <div className="card list">
-          <SettingRow label="QUIC (HTTP/3)" sub={s.shadow.quic === "auto" ? "Blocked on TCP tunnels so browsers use HTTP/2, which is faster through TCP" : s.shadow.quic === "block" ? "Always blocked" : "Always allowed"}>
+      </List>
+      <List title="DNS inside the tunnel" hint="Encrypted end to end, so neither your ISP nor your VPS host can read lookups.">
+        <RadioList<DnsProviderId>
+          label="Tunnel DNS"
+          value={s.shadow.dns_provider}
+          onChange={(v) => save((x) => ({ ...x, shadow: { ...x.shadow, dns_provider: v } }))}
+          options={providers.map((p) => ({ value: p.id, label: p.name }))}
+        />
+      </List>
+      <Advanced>
+        <List>
+          <SettingRow label="QUIC (HTTP/3)" sub={s.shadow.quic === "auto" ? "Blocked on TCP tunnels for speed" : undefined}>
             <Seg
               label="QUIC"
               value={s.shadow.quic}
@@ -219,10 +220,9 @@ export function ConnectionSettings({ nav }: { nav: Nav }) {
               ]}
             />
           </SettingRow>
-          <SettingRow label="Tunnel MTU" sub="Leave empty for the engine default (best for most networks)">
-            <input
-              className="input"
-              style={{ width: 86, minHeight: 32, textAlign: "center" }}
+          <SettingRow label="Tunnel MTU" sub="Empty uses the engine default">
+            <Input
+              className="h-8 w-[84px] text-center"
               inputMode="numeric"
               placeholder="auto"
               value={mtu}
@@ -233,8 +233,8 @@ export function ConnectionSettings({ nav }: { nav: Nav }) {
               }}
             />
           </SettingRow>
-        </div>
-      </details>
+        </List>
+      </Advanced>
       {hint}
     </Page>
   );
@@ -245,13 +245,10 @@ export function KillSwitchSettings({ nav }: { nav: Nav }) {
   const hint = useReconnectHint("shadow");
   return (
     <Page title="Kill switch" onBack={nav.back}>
-      <div className="card list">
-        <ToggleRow icon="shield" label="Kill switch" sub="If the tunnel drops, block internet access instead of leaking" checked={s.shadow.kill_switch} onChange={(v) => save((x) => ({ ...x, shadow: { ...x.shadow, kill_switch: v } }))} />
-        <ToggleRow icon="list" label="Allow local network" sub="Printers, file shares and your router stay reachable" checked={s.shadow.allow_lan} onChange={(v) => save((x) => ({ ...x, shadow: { ...x.shadow, allow_lan: v } }))} />
-      </div>
-      <p className="hint">
-        While SHADOW is on, Windows Filtering Platform rules allow only the tunnel. They stay in place if the connection or even the LOTUS service fails, and are removed as soon as you turn SHADOW off. With automatic reconnect off, traffic stays blocked after a drop until you reconnect or turn SHADOW off.
-      </p>
+      <List hint="If SHADOW drops, Windows blocks everything outside the tunnel instead of leaking. The block lifts when you turn SHADOW off.">
+        <ToggleRow icon={Shield} label="Kill switch" checked={s.shadow.kill_switch} onChange={(v) => save((x) => ({ ...x, shadow: { ...x.shadow, kill_switch: v } }))} />
+        <ToggleRow icon={Server} label="Allow local network" sub="Printers, shares and your router" checked={s.shadow.allow_lan} onChange={(v) => save((x) => ({ ...x, shadow: { ...x.shadow, allow_lan: v } }))} />
+      </List>
       {hint}
     </Page>
   );
@@ -264,18 +261,18 @@ export function AdvancedSettings({ nav }: { nav: Nav }) {
   const [busy, setBusy] = useState(false);
   return (
     <Page title="Advanced" onBack={nav.back}>
-      <div className="card list">
-        <SettingRow icon="cpu" label="LOTUS service" sub={service.connected ? `Running · v${status?.service_version ?? "?"}` : service.message ?? "Not reachable"}>
-          <span className={`pill ${service.connected ? "good" : "bad"}`}>
-            <span className="dot" /> {service.connected ? "OK" : "Down"}
-          </span>
+      <List>
+        <SettingRow icon={Cpu} label="LOTUS service" sub={service.connected ? `v${status?.service_version ?? "?"}` : service.message ?? "Not reachable"}>
+          <Pill tone={service.connected ? "good" : "bad"}>
+            <span className="size-1.5 rounded-full bg-current" /> {service.connected ? "Running" : "Down"}
+          </Pill>
         </SettingRow>
-        <SettingRow icon="zap" label="Networking engine" sub={`sing-box ${engine} · integrity-checked before every start`} />
-        <NavRow icon="file" label="Engine log" sub="Warnings and errors only, addresses redacted" onClick={() => nav.push({ name: "logs" })} />
-      </div>
-      <div className="btn-row" style={{ marginTop: 12 }}>
-        <button
-          className="btn"
+        <SettingRow icon={Zap} label="Networking engine" sub={`sing-box ${engine}`} />
+        <NavRow icon={FileText} label="Engine log" onClick={() => nav.push({ name: "logs" })} />
+      </List>
+      <div className="flex flex-col items-start gap-2">
+        <Button
+          variant="secondary"
           disabled={busy}
           onClick={async () => {
             setBusy(true);
@@ -289,10 +286,10 @@ export function AdvancedSettings({ nav }: { nav: Nav }) {
             }
           }}
         >
-          <Icon name="wrench" /> Repair service
-        </button>
+          <Wrench /> Repair service
+        </Button>
+        <Hint>Re-registers the background service. Needs administrator approval.</Hint>
       </div>
-      <p className="hint">Repair re-registers the background service. Windows will ask for administrator approval.</p>
     </Page>
   );
 }
@@ -312,15 +309,19 @@ export function LogsPage({ nav }: { nav: Nav }) {
       title="Engine log"
       onBack={nav.back}
       actions={
-        <button className="icon-btn" onClick={load} aria-label="Refresh">
-          <Icon name="refresh" />
-        </button>
+        <>
+          <IconButton label="Copy" disabled={!lines?.length} onClick={() => api.copyText((lines ?? []).join("\n")).then(() => toast("Log copied"))}>
+            <Copy />
+          </IconButton>
+          <IconButton label="Refresh" onClick={load}>
+            <RefreshCw />
+          </IconButton>
+        </>
       }
     >
-      <div className="card logbox">{lines === null ? "Loading…" : lines.length ? lines.join("\n") : "No messages. The engine runs at warning level, so normal operation leaves no log."}</div>
-      <button className="btn small" style={{ marginTop: 10 }} disabled={!lines?.length} onClick={() => api.copyText((lines ?? []).join("\n")).then(() => toast("Log copied"))}>
-        <Icon name="copy" /> Copy
-      </button>
+      <Card className="selectable max-h-[380px] overflow-auto p-3.5 font-mono text-[11px] leading-relaxed whitespace-pre-wrap text-muted-foreground select-text">
+        {lines === null ? "Loading…" : lines.length ? lines.join("\n") : "Nothing logged. Normal operation leaves no log."}
+      </Card>
     </Page>
   );
 }
@@ -330,25 +331,22 @@ export function About({ nav }: { nav: Nav }) {
   const engine = useStore((s) => s.engineVersion);
   return (
     <Page title="About" onBack={nav.back}>
-      <div className="card" style={{ padding: 18 }}>
-        <div style={{ fontFamily: "var(--font-display)", fontSize: 20, fontWeight: 650, letterSpacing: "0.28em" }}>LOTUS</div>
-        <div style={{ color: "var(--text-2)", marginTop: 2 }}>Version {version} · Free software under GPL-3.0-or-later</div>
-        <div style={{ color: "var(--text-3)", marginTop: 2, fontSize: 12, userSelect: "text" }}>github.com/HighSkai/Lotus</div>
-        <p className="hint" style={{ marginLeft: 0 }}>
-          No account, no ads, no analytics, no telemetry. LOTUS never collects browsing history. Engine logs stay in memory at warning level with addresses removed. Server profiles are encrypted with your Windows account (DPAPI).
-        </p>
-        <p className="hint" style={{ marginLeft: 0 }}>
-          To verify connections, LOTUS contacts Cloudflare (1.1.1.1/cdn-cgi/trace) to read your exit IP. The privacy check also queries Google's diagnostic DNS name and Team Cymru's IP-to-network lookup. A speed test uses speed.cloudflare.com and only runs when you start one.
-        </p>
-      </div>
-      <div className="section-title">Open-source components</div>
-      <div className="card list">
-        <SettingRow label="sing-box" sub={`v${engine} · GPL-3.0-or-later · github.com/SagerNet/sing-box`} />
+      <Card className="gap-1 p-5">
+        <div className="text-[20px] font-semibold tracking-[0.28em]">LOTUS</div>
+        <div className="text-muted-foreground">Version {version} · GPL-3.0-or-later</div>
+        <div className="selectable text-[12px] text-faint select-text">github.com/HighSkai/Lotus</div>
+      </Card>
+      <List title="Privacy">
+        <SettingRow label="No account, ads, analytics or telemetry" sub="Logs stay in memory with addresses removed. Profiles are encrypted with your Windows account." />
+        <SettingRow label="Network checks" sub="Exit IP via Cloudflare's trace page. The privacy check also queries Google and Team Cymru. Speed tests use speed.cloudflare.com, only on demand." />
+      </List>
+      <List title="Open-source components" hint="Full notices are in the licenses folder next to LOTUS.">
+        <SettingRow label="sing-box" sub={`v${engine} · GPL-3.0-or-later`} />
         <SettingRow label="Tauri" sub="MIT / Apache-2.0" />
-        <SettingRow label="React" sub="MIT" />
+        <SettingRow label="React, Radix UI, shadcn/ui, Motion, Sonner, NumberFlow, Lucide" sub="MIT / ISC" />
+        <SettingRow label="Inter" sub="SIL Open Font License 1.1" />
         <SettingRow label="Tracker list" sub="SagerNet/sing-geosite category-ads-all" />
-      </div>
-      <p className="hint">Full notices are installed in the licenses folder next to LOTUS.</p>
+      </List>
     </Page>
   );
 }

@@ -1,12 +1,23 @@
 import { useState } from "react";
-import { Icon } from "../components/Icon";
-import { Page } from "../components/Controls";
-import { api, errorText } from "../lib/api";
-import { useStore } from "../lib/store";
-import type { DiagnosticsReport, SpeedResult } from "../lib/types";
+import { AnimatePresence, motion } from "motion/react";
+import NumberFlow from "@number-flow/react";
+import { Check, Gauge, Info, LoaderCircle, Play, TriangleAlert } from "lucide-react";
+import { Hint, Page } from "@/components/Controls";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { api, errorText } from "@/lib/api";
+import { easeOut } from "@/lib/motion";
+import { useStore } from "@/lib/store";
+import { cn } from "@/lib/utils";
+import type { DiagnosticsReport, SpeedResult } from "@/lib/types";
 import type { Nav } from "../App";
 
-const OUTCOME_ICON = { pass: "check", warn: "alert", fail: "alert", info: "info" } as const;
+const OUTCOME = {
+  pass: { icon: Check, cls: "bg-good/14 text-good" },
+  warn: { icon: TriangleAlert, cls: "bg-warn/15 text-warn" },
+  fail: { icon: TriangleAlert, cls: "bg-destructive/12 text-destructive" },
+  info: { icon: Info, cls: "bg-primary/12 text-primary" },
+} as const;
 
 export function Diagnostics({ nav }: { nav: Nav }) {
   const [report, setReport] = useState<DiagnosticsReport | null>(null);
@@ -30,38 +41,60 @@ export function Diagnostics({ nav }: { nav: Nav }) {
 
   return (
     <Page title="Privacy check" onBack={nav.back}>
-      <div className="card" style={{ padding: 16, display: "flex", alignItems: "center", gap: 14 }}>
-        <div style={{ flex: 1 }}>
-          <div style={{ fontWeight: 620, fontSize: 14 }}>
-            {!report ? "Check for leaks" : fails ? `${fails} problem${fails > 1 ? "s" : ""} found` : warns ? "Mostly protected" : "No leaks found"}
-          </div>
-          <div style={{ color: "var(--text-2)", fontSize: 12.5, marginTop: 2 }}>
-            {report ? `Checked ${new Date(report.generated_at).toLocaleTimeString()} · ${report.mode ? report.mode.toUpperCase() : "not connected"}` : "Tests DNS, IPv4, IPv6 and routing with real network requests."}
+      <Card className="flex-row items-center gap-3 p-4">
+        <div className="min-w-0 flex-1">
+          <div className="text-[14px] font-semibold">{!report ? "Check for leaks" : fails ? `${fails} problem${fails > 1 ? "s" : ""} found` : warns ? "Mostly protected" : "No leaks found"}</div>
+          <div className="mt-0.5 text-[12px] text-muted-foreground">
+            {report ? `${new Date(report.generated_at).toLocaleTimeString()} · ${report.mode ? report.mode.toUpperCase() : "not connected"}` : "DNS, IPv4, IPv6 and routing"}
           </div>
         </div>
-        <button className="btn primary" onClick={run} disabled={busy || !service.connected}>
-          {busy ? <span className="spinner" /> : <Icon name="play" />} {report ? "Run again" : "Run"}
-        </button>
-      </div>
-      {err && <div className="error-text">{err}</div>}
-      {report && (
-        <div className="card" style={{ marginTop: 12 }}>
-          {report.checks.map((c) => (
-            <div key={c.id} className={`check ${c.outcome}`}>
-              <span className="badge">
-                <Icon name={OUTCOME_ICON[c.outcome]} />
-              </span>
-              <div style={{ minWidth: 0 }}>
-                <div className="title">{c.title}</div>
-                <div className="summary">{c.summary}</div>
-                {c.detail && <div className="detail">{c.detail}</div>}
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-      <p className="hint">Nothing is simulated: each line comes from a real query or request made just now through your current connection.</p>
+        <Button onClick={run} disabled={busy || !service.connected}>
+          {busy ? <LoaderCircle className="animate-spin" /> : <Play />} {report ? "Run again" : "Run"}
+        </Button>
+      </Card>
+      {err && <Hint className="text-destructive">{err}</Hint>}
+      <AnimatePresence initial={false}>
+        {report && (
+          <motion.div key={report.generated_at} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={{ duration: 0.22, ease: easeOut }}>
+            <Card className="p-1">
+              {report.checks.map((c, i) => {
+                const o = OUTCOME[c.outcome];
+                return (
+                  <motion.div
+                    key={c.id}
+                    initial={{ opacity: 0, y: 6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.22, ease: easeOut, delay: i * 0.04 }}
+                    className="relative flex gap-3 px-3 py-3 not-first:before:absolute not-first:before:top-0 not-first:before:right-3 not-first:before:left-3 not-first:before:h-px not-first:before:bg-border"
+                  >
+                    <span className={cn("grid size-[26px] shrink-0 place-items-center rounded-[9px]", o.cls)}>
+                      <o.icon className="size-[15px]" />
+                    </span>
+                    <div className="min-w-0">
+                      <div className="text-[11.5px] text-faint">{c.title}</div>
+                      <div className="text-[13px] font-medium">{c.summary}</div>
+                      {c.detail && <div className="selectable mt-0.5 text-[12px] leading-snug text-muted-foreground select-text">{c.detail}</div>}
+                    </div>
+                  </motion.div>
+                );
+              })}
+            </Card>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </Page>
+  );
+}
+
+function Stat({ k, v, u, digits = 1 }: { k: string; v: number | null | undefined; u: string; digits?: number }) {
+  return (
+    <Card className="items-center gap-0.5 px-2 py-3.5 text-center">
+      <div className="text-[10.5px] font-medium tracking-[0.07em] text-faint uppercase">{k}</div>
+      <div className="text-[22px] font-semibold tracking-[-0.02em] tabular-nums">
+        {v == null ? "—" : <NumberFlow value={v} format={{ maximumFractionDigits: v >= 100 ? 0 : digits }} transformTiming={{ duration: 700, easing: "cubic-bezier(0.22, 1, 0.36, 1)" }} />}
+      </div>
+      <div className="text-[11px] text-faint">{u}</div>
+    </Card>
   );
 }
 
@@ -72,29 +105,16 @@ export function SpeedTest({ nav }: { nav: Nav }) {
   const status = useStore((s) => s.status);
   const service = useStore((s) => s.service);
   const via = status?.state === "connected" ? (status.mode === "shadow" ? `through ${status.profile_name ?? "your server"}` : "with LOTUS DNS") : "on your normal connection";
-  const fmt = (n: number | null | undefined) => (n == null ? "—" : n >= 100 ? n.toFixed(0) : n.toFixed(1));
   return (
     <Page title="Speed test" onBack={nav.back}>
-      <div className="stat-grid">
-        <div className="card stat">
-          <div className="k">DOWNLOAD</div>
-          <div className="v">{fmt(r?.download_mbps)}</div>
-          <div className="u">Mbps</div>
-        </div>
-        <div className="card stat">
-          <div className="k">UPLOAD</div>
-          <div className="v">{fmt(r?.upload_mbps)}</div>
-          <div className="u">Mbps</div>
-        </div>
-        <div className="card stat">
-          <div className="k">LATENCY</div>
-          <div className="v">{r?.latency_ms ?? "—"}</div>
-          <div className="u">ms</div>
-        </div>
+      <div className="grid grid-cols-3 gap-2">
+        <Stat k="Down" v={r?.download_mbps} u="Mbps" />
+        <Stat k="Up" v={r?.upload_mbps} u="Mbps" />
+        <Stat k="Latency" v={r?.latency_ms} u="ms" digits={0} />
       </div>
-      <button
-        className="btn primary block"
-        style={{ marginTop: 12 }}
+      <Button
+        size="lg"
+        className="w-full"
         disabled={busy || !service.connected}
         onClick={async () => {
           setBusy(true);
@@ -110,18 +130,18 @@ export function SpeedTest({ nav }: { nav: Nav }) {
       >
         {busy ? (
           <>
-            <span className="spinner" /> Measuring… about 20 seconds
+            <LoaderCircle className="animate-spin" /> Measuring…
           </>
         ) : (
           <>
-            <Icon name="speed" /> Start test
+            <Gauge /> Start test
           </>
         )}
-      </button>
-      {err && <div className="error-text">{err}</div>}
-      <p className="hint">
-        Runs {via}. {r?.message ?? "Uses up to about 60 MB of data and only runs when you press the button."}
-      </p>
+      </Button>
+      {err && <Hint className="text-destructive">{err}</Hint>}
+      <Hint>
+        Runs {via}. {r?.message ?? "Uses up to about 60 MB."}
+      </Hint>
     </Page>
   );
 }

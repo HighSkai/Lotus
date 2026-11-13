@@ -1,7 +1,15 @@
 import { useSyncExternalStore } from "react";
 import { listen } from "@tauri-apps/api/event";
+import { toast as sonner } from "sonner";
 import { api } from "./api";
-import type { AppSettings, ProviderInfo, ServerProfile, Status } from "./types";
+import type { AppSettings, Mode, ProviderInfo, ServerProfile, Status } from "./types";
+
+/** Summary of the most recent session in this app run, shown while off. */
+export interface LastSession {
+  mode: Mode;
+  bytes: number;
+  ms: number;
+}
 
 export interface State {
   ready: boolean;
@@ -13,7 +21,7 @@ export interface State {
   version: string;
   engineVersion: string;
   storeWarning: string | null;
-  toast: { id: number; text: string; tone: "info" | "error" } | null;
+  lastSession: LastSession | null;
 }
 
 let state: State = {
@@ -26,12 +34,27 @@ let state: State = {
   version: "",
   engineVersion: "",
   storeWarning: null,
-  toast: null,
+  lastSession: null,
 };
 
 const listeners = new Set<() => void>();
 
+const isLive = (s: Status | null) => !!s && (s.state === "connected" || s.state === "reconnecting");
+
+/** When a live session ends, keep its totals so Home can show them afterwards. */
+function sessionEnded(prev: Status | null, next: Status | null): Partial<State> {
+  if (!isLive(prev) || isLive(next) || !prev?.mode || !prev.connected_since) return {};
+  return {
+    lastSession: {
+      mode: prev.mode,
+      bytes: prev.traffic.up_total + prev.traffic.down_total,
+      ms: Math.max(0, Date.now() - prev.connected_since),
+    },
+  };
+}
+
 export function setState(patch: Partial<State>) {
+  if ("status" in patch && patch.status !== state.status) patch = { ...sessionEnded(state.status, patch.status ?? null), ...patch };
   state = { ...state, ...patch };
   listeners.forEach((l) => l());
 }
@@ -50,13 +73,9 @@ export function useStore<T>(sel: (s: State) => T): T {
   );
 }
 
-let toastSeq = 0;
 export function toast(text: string, tone: "info" | "error" = "info") {
-  const id = ++toastSeq;
-  setState({ toast: { id, text, tone } });
-  window.setTimeout(() => {
-    if (state.toast?.id === id) setState({ toast: null });
-  }, tone === "error" ? 5200 : 2600);
+  if (tone === "error") sonner.error(text, { duration: 5200 });
+  else sonner(text, { duration: 2600 });
 }
 
 export async function init() {

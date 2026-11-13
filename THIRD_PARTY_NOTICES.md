@@ -17,6 +17,10 @@ sing-box runs as a separate program that LOTUS starts and talks to over a local 
 
 - Tauri 2 and plugins (single-instance, autostart, dialog, clipboard-manager): MIT or Apache-2.0
 - React and React DOM: MIT
+- Radix UI primitives, shadcn/ui components, Tailwind CSS, tw-animate-css, class-variance-authority, cn: MIT
+- Motion, Sonner, NumberFlow: MIT
+- Lucide icons: ISC
+- Inter typeface (https://github.com/rsms/inter, via @fontsource-variable/inter): SIL Open Font License 1.1
 - tokio, serde, serde_json, reqwest, rustls, ring, windows-sys, windows-service, url, uuid, base64, sha2, tracing and their dependencies: MIT and/or Apache-2.0 (ring: ISC-style and OpenSSL-derived terms)
 
 Generate an exhaustive, per-crate list with:

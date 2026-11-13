@@ -1,11 +1,19 @@
-import { useRef, useState } from "react";
-import { Icon } from "../components/Icon";
-import { LotusMark } from "../components/LotusMark";
-import { Page } from "../components/Controls";
-import { api, errorText } from "../lib/api";
-import { hostLabel } from "../lib/format";
-import { setState, toast, useStore } from "../lib/store";
-import type { ImportResult, TestResult } from "../lib/types";
+import { useRef, useState, type ReactNode } from "react";
+import { AnimatePresence, motion } from "motion/react";
+import { Activity, Check, ClipboardPaste, Copy, FileText, LoaderCircle, Pencil, Plus, Server, Trash2, TriangleAlert, WandSparkles } from "lucide-react";
+import { LotusMark } from "@/components/LotusMark";
+import { Hint, IconButton, List, NavRow, Page, Pill } from "@/components/Controls";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { api, errorText } from "@/lib/api";
+import { hostLabel } from "@/lib/format";
+import { spring } from "@/lib/motion";
+import { setState, toast, useStore } from "@/lib/store";
+import { cn } from "@/lib/utils";
+import type { ImportResult, ServerProfile, TestResult } from "@/lib/types";
 import { labelFor } from "./Home";
 import type { Nav } from "../App";
 
@@ -14,6 +22,7 @@ export function Servers({ nav }: { nav: Nav }) {
   const settings = useStore((s) => s.settings)!;
   const mode = settings.mode;
   const [tests, setTests] = useState<Record<string, TestResult | "running">>({});
+  const [doomed, setDoomed] = useState<ServerProfile | null>(null);
 
   async function test(id: string) {
     setTests((t) => ({ ...t, [id]: "running" }));
@@ -31,8 +40,7 @@ export function Servers({ nav }: { nav: Nav }) {
     }
   }
 
-  async function remove(id: string, name: string) {
-    if (!window.confirm(`Delete “${name}”? Its keys are removed from this PC.`)) return;
+  async function remove(id: string) {
     try {
       setState({ profiles: await api.deleteProfile(id) });
     } catch (e) {
@@ -40,85 +48,103 @@ export function Servers({ nav }: { nav: Nav }) {
     }
   }
 
+  const select = (id: string) => api.selectProfile(id).catch((e) => toast(errorText(e), "error"));
+
   return (
     <Page
       title="Servers"
       onBack={nav.back}
       actions={
-        <button className="btn small primary" onClick={() => nav.push({ name: "add-server" })}>
-          <Icon name="plus" /> Add
-        </button>
+        profiles.length > 0 && (
+          <Button size="sm" onClick={() => nav.push({ name: "add-server" })}>
+            <Plus /> Add
+          </Button>
+        )
       }
     >
       {profiles.length === 0 ? (
-        <div className="card empty">
-          <LotusMark mode={mode} className="big" water />
-          <strong style={{ color: "var(--text-1)" }}>Bring your own server</strong>
-          <span>SHADOW sends your traffic through a server you control, so websites see its address instead of yours.</span>
-          <div className="btn-row" style={{ justifyContent: "center" }}>
-            <button className="btn primary" onClick={() => nav.push({ name: "add-server" })}>
-              <Icon name="plus" /> Add a server
-            </button>
-            <button className="btn" onClick={() => nav.push({ name: "setup" })}>
-              <Icon name="wand" /> Set one up
-            </button>
+        <Card className="items-center gap-2 px-5 py-7 text-center">
+          <LotusMark mode={mode} className="mb-1 size-14" water />
+          <div className="text-[15px] font-semibold">Bring your own server</div>
+          <div className="max-w-[260px] text-[12.5px] text-muted-foreground">Websites see your server's address instead of yours.</div>
+          <div className="mt-3 flex flex-wrap justify-center gap-2">
+            <Button onClick={() => nav.push({ name: "add-server" })}>
+              <Plus /> Add a server
+            </Button>
+            <Button variant="secondary" onClick={() => nav.push({ name: "setup" })}>
+              <WandSparkles /> Set one up
+            </Button>
           </div>
-        </div>
+        </Card>
       ) : (
-        <div className="card list" role="radiogroup" aria-label="Exit server">
-          {profiles.map((p) => {
-            const t = tests[p.id];
-            return (
-              <div
-                key={p.id}
-                className="server"
-                role="radio"
-                tabIndex={0}
-                aria-checked={settings.selected_profile === p.id}
-                onClick={() => api.selectProfile(p.id).catch((e) => toast(errorText(e), "error"))}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" || e.key === " ") {
-                    e.preventDefault();
-                    api.selectProfile(p.id).catch((er) => toast(errorText(er), "error"));
-                  }
-                }}
-              >
-                <span className="chip" style={{ width: 32, height: 32, borderRadius: 10, display: "grid", placeItems: "center", background: "color-mix(in srgb, var(--accent) 12%, transparent)", color: "var(--accent)" }}>
-                  <Icon name="server" className="" />
-                </span>
-                <div className="meta">
-                  <div className="name">{p.name}</div>
-                  <div className="proto">
-                    {labelFor(p.protocol.type)} · {hostLabel(p.protocol.server, p.protocol.port)}
+        <Card className="p-1" role="radiogroup" aria-label="Exit server">
+          <AnimatePresence initial={false}>
+            {profiles.map((p) => {
+              const t = tests[p.id];
+              const on = settings.selected_profile === p.id;
+              return (
+                <motion.div
+                  key={p.id}
+                  layout
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: "auto" }}
+                  exit={{ opacity: 0, height: 0 }}
+                  transition={spring}
+                  className="group/server overflow-hidden"
+                >
+                  <div className={cn("relative flex items-center gap-1 rounded-[18px] py-1 pr-1.5 transition-colors duration-200", on && "bg-primary/[0.07] ring-1 ring-primary/20 ring-inset")}>
+                    <button type="button" role="radio" aria-checked={on} data-spot onClick={() => select(p.id)} className="flex min-w-0 flex-1 items-center gap-3 rounded-[16px] py-1.5 pl-3 text-left">
+                      <span className={cn("grid size-[30px] shrink-0 place-items-center rounded-[10px] transition-colors duration-200", on ? "bg-linear-120 from-on-a to-on-b text-white" : "bg-primary/10 text-primary")}>
+                        {on ? <Check className="size-4" strokeWidth={2.4} /> : <Server className="size-4" strokeWidth={1.9} />}
+                      </span>
+                      <span className="flex min-w-0 flex-1 flex-col">
+                        <span className="truncate text-[13.5px] font-semibold">{p.name}</span>
+                        <span className="truncate text-[11.5px] text-faint">
+                          {labelFor(p.protocol.type)} · {hostLabel(p.protocol.server, p.protocol.port)}
+                        </span>
+                      </span>
+                      {t === "running" ? (
+                        <LoaderCircle className="size-4 animate-spin text-primary" />
+                      ) : t ? (
+                        <Pill tone={t.ok ? "good" : "bad"}>{t.ok ? `${t.latency_ms} ms` : "Failed"}</Pill>
+                      ) : null}
+                    </button>
+                    <div className="flex opacity-55 transition-opacity duration-150 group-focus-within/server:opacity-100 group-hover/server:opacity-100">
+                      <IconButton label="Test" onClick={() => test(p.id)}>
+                        <Activity />
+                      </IconButton>
+                      <IconButton label="Copy share link" onClick={() => api.copyShareLink(p.id).then(() => toast("Link copied. It contains your server's secret"))}>
+                        <Copy />
+                      </IconButton>
+                      <IconButton label="Edit" onClick={() => nav.push({ name: "edit-server", id: p.id })}>
+                        <Pencil />
+                      </IconButton>
+                      <IconButton label="Delete" onClick={() => setDoomed(p)} className="hover:text-destructive">
+                        <Trash2 />
+                      </IconButton>
+                    </div>
                   </div>
-                </div>
-                {t === "running" ? (
-                  <span className="spinner" style={{ color: "var(--accent)" }} />
-                ) : t ? (
-                  <span className={`pill ${t.ok ? "good" : "bad"}`} title={t.message}>
-                    {t.ok ? `${t.latency_ms} ms` : "Failed"}
-                  </span>
-                ) : null}
-                <div className="actions" onClick={(e) => e.stopPropagation()}>
-                  <button className="icon-btn" aria-label={`Test ${p.name}`} title="Test" onClick={() => test(p.id)}>
-                    <Icon name="pulse" />
-                  </button>
-                  <button className="icon-btn" aria-label={`Copy link for ${p.name}`} title="Copy share link" onClick={() => api.copyShareLink(p.id).then(() => toast("Link copied. It contains your server's secret"))}>
-                    <Icon name="copy" />
-                  </button>
-                  <button className="icon-btn" aria-label={`Edit ${p.name}`} title="Edit" onClick={() => nav.push({ name: "edit-server", id: p.id })}>
-                    <Icon name="edit" />
-                  </button>
-                  <button className="icon-btn" aria-label={`Delete ${p.name}`} title="Delete" onClick={() => remove(p.id, p.name)}>
-                    <Icon name="trash" />
-                  </button>
-                </div>
-              </div>
-            );
-          })}
-        </div>
+                </motion.div>
+              );
+            })}
+          </AnimatePresence>
+        </Card>
       )}
-      {profiles.length > 0 && <p className="hint">Tap a server to use it. Testing performs a real secure handshake without changing your routing.</p>}
+
+      <AlertDialog open={!!doomed} onOpenChange={(o) => !o && setDoomed(null)}>
+        <AlertDialogContent size="sm">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete “{doomed?.name}”?</AlertDialogTitle>
+            <AlertDialogDescription>Its keys are removed from this PC.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction variant="destructive" onClick={() => doomed && remove(doomed.id)}>
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Page>
   );
 }
@@ -148,29 +174,29 @@ export function AddServer({ nav }: { nav: Nav }) {
 
   return (
     <Page title="Add server" onBack={nav.back}>
-      <div className="card" style={{ padding: 14 }}>
-        <div className="field" style={{ marginBottom: 10 }}>
-          <label htmlFor="imp">Paste a link or configuration</label>
-          <textarea
-            id="imp"
-            className="input"
-            rows={5}
-            spellCheck={false}
-            placeholder={"lotus://…  vless://…  ss://…  trojan://…\nhysteria2://…  a WireGuard .conf  or sing-box JSON"}
-            value={text}
-            onChange={(e) => setText(e.target.value)}
-          />
-        </div>
-        <div className="btn-row">
-          <button className="btn primary" disabled={busy || !text.trim()} onClick={() => run(api.importText(text))}>
-            {busy ? <span className="spinner" /> : <Icon name="check" />} Import
-          </button>
-          <button className="btn" disabled={busy} onClick={() => run(api.importClipboard())}>
-            <Icon name="clipboard" /> From clipboard
-          </button>
-          <button className="btn" disabled={busy} onClick={() => fileRef.current?.click()}>
-            <Icon name="file" /> File…
-          </button>
+      <Card className="gap-3 p-4">
+        <Label htmlFor="imp" className="text-[12px] font-medium text-muted-foreground">
+          Paste a link or configuration
+        </Label>
+        <Textarea
+          id="imp"
+          rows={5}
+          spellCheck={false}
+          className="min-h-[112px] font-mono text-[12px] leading-relaxed"
+          placeholder={"lotus://  vless://  ss://  trojan://  hysteria2://\nWireGuard .conf or sing-box JSON"}
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+        />
+        <div className="flex flex-wrap gap-2">
+          <Button disabled={busy || !text.trim()} onClick={() => run(api.importText(text))}>
+            {busy ? <LoaderCircle className="animate-spin" /> : <Check />} Import
+          </Button>
+          <Button variant="secondary" disabled={busy} onClick={() => run(api.importClipboard())}>
+            <ClipboardPaste /> Paste
+          </Button>
+          <Button variant="secondary" disabled={busy} onClick={() => fileRef.current?.click()}>
+            <FileText /> File…
+          </Button>
           <input
             ref={fileRef}
             type="file"
@@ -188,67 +214,52 @@ export function AddServer({ nav }: { nav: Nav }) {
             }}
           />
         </div>
-      </div>
+      </Card>
       {result && result.issues.length > 0 && (
-        <div className="card" style={{ marginTop: 12 }}>
+        <Card className="p-1">
           {result.issues.map((i, n) => (
-            <div className="check fail" key={n}>
-              <span className="badge">
-                <Icon name="alert" />
+            <div key={n} className="relative flex gap-3 px-3 py-3 not-first:before:absolute not-first:before:top-0 not-first:before:right-3 not-first:before:left-3 not-first:before:h-px not-first:before:bg-border">
+              <span className="grid size-[26px] shrink-0 place-items-center rounded-[9px] bg-destructive/12 text-destructive">
+                <TriangleAlert className="size-[15px]" />
               </span>
-              <div>
-                <div className="title">{i.source}</div>
-                <div className="detail" style={{ color: "var(--text-1)" }}>
-                  {i.message}
-                </div>
+              <div className="min-w-0">
+                <div className="text-[11.5px] text-faint">{i.source}</div>
+                <div className="selectable text-[12.5px] select-text">{i.message}</div>
               </div>
             </div>
           ))}
-        </div>
+        </Card>
       )}
-      <div className="card list" style={{ marginTop: 12 }}>
-        <button className="row" onClick={() => nav.push({ name: "edit-server" })}>
-          <span className="chip">
-            <Icon name="edit" />
-          </span>
-          <span className="text">
-            <span className="value" style={{ fontWeight: 540 }}>
-              Enter details manually
-            </span>
-            <span className="sub">VLESS, Trojan, Shadowsocks, Hysteria2, TUIC, AnyTLS, Naive, WireGuard</span>
-          </span>
-          <span className="trail">
-            <Icon name="chevron" />
-          </span>
-        </button>
-        <button className="row" onClick={() => nav.push({ name: "setup" })}>
-          <span className="chip">
-            <Icon name="wand" />
-          </span>
-          <span className="text">
-            <span className="value" style={{ fontWeight: 540 }}>
-              Set up my own server
-            </span>
-            <span className="sub">One script for a Debian, Ubuntu or Arch Linux VPS</span>
-          </span>
-          <span className="trail">
-            <Icon name="chevron" />
-          </span>
-        </button>
-      </div>
-      <p className="hint">LOTUS refuses links that turn off certificate verification or use unencrypted transports, and tells you why.</p>
+      <List hint="Links that disable certificate checks or use unencrypted transports are refused.">
+        <NavRow icon={Pencil} label="Enter details manually" onClick={() => nav.push({ name: "edit-server" })} />
+        <NavRow icon={WandSparkles} label="Set up my own server" sub="Debian, Ubuntu or Arch Linux VPS" onClick={() => nav.push({ name: "setup" })} />
+      </List>
     </Page>
   );
 }
 
 function Code({ text }: { text: string }) {
   return (
-    <div className="code">
+    <div className="selectable relative rounded-xl bg-fill py-2.5 pr-11 pl-3 font-mono text-[11.5px] leading-relaxed break-all whitespace-pre-wrap select-text">
       {text}
-      <button className="icon-btn" aria-label="Copy" onClick={() => api.copyText(text).then(() => toast("Copied"))}>
-        <Icon name="copy" />
-      </button>
+      <div className="absolute top-1 right-1">
+        <IconButton label="Copy" onClick={() => api.copyText(text).then(() => toast("Copied"))}>
+          <Copy />
+        </IconButton>
+      </div>
     </div>
+  );
+}
+
+function Step({ n, title, children }: { n: number; title: string; children: ReactNode }) {
+  return (
+    <Card className="gap-2.5 p-4">
+      <div className="flex items-center gap-2.5 text-[13.5px] font-semibold">
+        <span className="grid size-[22px] shrink-0 place-items-center rounded-full bg-linear-120 from-on-a to-on-b text-[11.5px] font-bold text-white">{n}</span>
+        {title}
+      </div>
+      <div className="flex flex-col gap-2.5 text-[12.5px] leading-relaxed text-muted-foreground">{children}</div>
+    </Card>
   );
 }
 
@@ -256,50 +267,39 @@ export function ServerSetup({ nav }: { nav: Nav }) {
   const [saved, setSaved] = useState<string | null>(null);
   return (
     <Page title="Set up your server" onBack={nav.back}>
-      <p className="hint" style={{ marginTop: 0 }}>
-        The installer sets up sing-box on your VPS with VLESS + REALITY + Vision. It needs no domain name or certificate, and its handshake looks like an ordinary visit to a well-known HTTPS site. Optionally it adds Hysteria2 for lossy networks. Takes about a minute.
-      </p>
-      <div className="steps">
-        <div className="card step">
-          <h3>Get a VPS</h3>
-          <p>Any provider works. Choose Debian 12/13, Ubuntu 22.04/24.04 or Arch Linux, 512 MB RAM or more, located where you want your exit IP to be. Note its IP address and root (or sudo) login.</p>
-        </div>
-        <div className="card step">
-          <h3>Save the installer</h3>
-          <p>It verifies the sing-box download against a pinned SHA-256 digest, asks before touching existing firewall rules, and can be fully removed with --uninstall.</p>
-          <div className="btn-row">
-            <button
-              className="btn primary"
-              onClick={async () => {
-                try {
-                  const p = await api.saveServerScript();
-                  if (p) setSaved(p);
-                } catch (e) {
-                  toast(errorText(e), "error");
-                }
-              }}
-            >
-              <Icon name="file" /> Save install script…
-            </button>
-          </div>
-          {saved && <p style={{ marginTop: 8, marginBottom: 0 }}>Saved to {saved}</p>}
-        </div>
-        <div className="card step">
-          <h3>Run it on the server</h3>
-          <p>From PowerShell on this PC (replace YOUR_SERVER_IP):</p>
-          <Code text={"scp lotus-server-install.sh root@YOUR_SERVER_IP:\nssh root@YOUR_SERVER_IP \"bash lotus-server-install.sh\""} />
-          <p style={{ marginTop: 10 }}>Add Hysteria2 (UDP) as a second option:</p>
-          <Code text={'ssh root@YOUR_SERVER_IP "bash lotus-server-install.sh --with-hysteria2"'} />
-        </div>
-        <div className="card step">
-          <h3>Import the result</h3>
-          <p>The script ends by printing a lotus:// link. Copy it, then:</p>
-          <button className="btn primary" onClick={() => nav.replace({ name: "add-server" })}>
-            <Icon name="clipboard" /> Paste the link
-          </button>
-        </div>
-      </div>
-      <p className="hint">Already run your own Xray or sing-box server? Skip this and paste its vless://, trojan://, ss:// or hysteria2:// link instead.</p>
+      <Hint>Installs sing-box with VLESS + REALITY. No domain or certificate needed. About a minute.</Hint>
+      <Step n={1} title="Get a VPS">
+        <p className="m-0">Debian 12/13, Ubuntu 22.04/24.04 or Arch Linux, 512 MB RAM or more, located where you want your exit IP.</p>
+      </Step>
+      <Step n={2} title="Save the installer">
+        <p className="m-0">Verifies its download against a pinned SHA-256 and can be removed with --uninstall.</p>
+        <Button
+          className="self-start"
+          onClick={async () => {
+            try {
+              const p = await api.saveServerScript();
+              if (p) setSaved(p);
+            } catch (e) {
+              toast(errorText(e), "error");
+            }
+          }}
+        >
+          <FileText /> Save install script…
+        </Button>
+        {saved && <p className="selectable m-0 select-text">Saved to {saved}</p>}
+      </Step>
+      <Step n={3} title="Run it on the server">
+        <p className="m-0">From PowerShell (replace YOUR_SERVER_IP):</p>
+        <Code text={"scp lotus-server-install.sh root@YOUR_SERVER_IP:\nssh root@YOUR_SERVER_IP \"bash lotus-server-install.sh\""} />
+        <p className="m-0">Optionally add Hysteria2 (UDP):</p>
+        <Code text={'ssh root@YOUR_SERVER_IP "bash lotus-server-install.sh --with-hysteria2"'} />
+      </Step>
+      <Step n={4} title="Import the result">
+        <p className="m-0">Copy the lotus:// link it prints, then:</p>
+        <Button className="self-start" onClick={() => nav.replace({ name: "add-server" })}>
+          <ClipboardPaste /> Paste the link
+        </Button>
+      </Step>
     </Page>
   );
 }

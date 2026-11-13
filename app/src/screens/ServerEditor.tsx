@@ -1,9 +1,17 @@
-import { useMemo, useState } from "react";
-import { Icon } from "../components/Icon";
-import { Page, Seg, Toggle } from "../components/Controls";
-import { api, errorText } from "../lib/api";
-import { setState, toast, useStore } from "../lib/store";
-import type { Protocol, ServerProfile, TlsConfig, Transport } from "../lib/types";
+import { useMemo, useState, type ReactNode } from "react";
+import { Check, Eye, EyeOff, LoaderCircle } from "lucide-react";
+import { Advanced, Hint, Page, Seg } from "@/components/Controls";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
+import { Textarea } from "@/components/ui/textarea";
+import { api, errorText } from "@/lib/api";
+import { setState, toast, useStore } from "@/lib/store";
+import { cn } from "@/lib/utils";
+import type { Protocol, ServerProfile, TlsConfig, Transport } from "@/lib/types";
 import type { Nav } from "../App";
 
 type Kind = "reality" | "vless-tls" | "trojan" | "shadowsocks" | "hysteria2" | "tuic" | "anytls" | "naive" | "wireguard";
@@ -217,32 +225,80 @@ function toProtocol(f: Form): Protocol {
   }
 }
 
+function FieldShell({ id, label, children }: { id?: string; label: string; children: ReactNode }) {
+  return (
+    <div className="grid gap-1.5">
+      <Label htmlFor={id} className="pl-0.5 text-[12px] font-medium text-muted-foreground">
+        {label}
+      </Label>
+      {children}
+    </div>
+  );
+}
+
 function Field({ id, label, value, onChange, placeholder, secret, mono }: { id: string; label: string; value: string; onChange: (v: string) => void; placeholder?: string; secret?: boolean; mono?: boolean }) {
   const [show, setShow] = useState(!secret);
   return (
-    <div className="field">
-      <label htmlFor={id}>{label}</label>
-      <div style={{ position: "relative" }}>
-        <input
+    <FieldShell id={id} label={label}>
+      <div className="relative">
+        <Input
           id={id}
-          className="input"
           type={show ? "text" : "password"}
           spellCheck={false}
           autoComplete="off"
           value={value}
           placeholder={placeholder}
-          style={mono ? { fontFamily: "var(--mono)", fontSize: 12, paddingRight: secret ? 40 : undefined } : secret ? { paddingRight: 40 } : undefined}
+          className={cn(mono && "font-mono text-[12px]", secret && "pr-10")}
           onChange={(e) => onChange(e.target.value)}
         />
         {secret && (
-          <button type="button" className="icon-btn" style={{ position: "absolute", right: 3, top: 2, width: 32, height: 32 }} aria-label={show ? "Hide" : "Show"} onClick={() => setShow(!show)}>
-            <Icon name="eye" />
+          <button
+            type="button"
+            className="absolute top-1/2 right-1.5 grid size-7 -translate-y-1/2 place-items-center rounded-full text-faint transition-colors hover:bg-fill hover:text-foreground"
+            aria-label={show ? "Hide" : "Show"}
+            onClick={() => setShow(!show)}
+          >
+            {show ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
           </button>
         )}
       </div>
-    </div>
+    </FieldShell>
   );
 }
+
+function Choice({ id, label, value, onChange, options }: { id: string; label: string; value: string; onChange: (v: string) => void; options: { value: string; label: string }[] }) {
+  return (
+    <FieldShell id={id} label={label}>
+      <Select value={value} onValueChange={onChange}>
+        <SelectTrigger id={id} className="w-full">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent position="popper" sideOffset={6}>
+          {options.map((o) => (
+            <SelectItem key={o.value} value={o.value}>
+              {o.label}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </FieldShell>
+  );
+}
+
+function SwitchField({ label, sub, checked, onChange }: { label: string; sub?: string; checked: boolean; onChange: (v: boolean) => void }) {
+  return (
+    <label className="flex cursor-pointer items-center gap-3 py-1">
+      <span className="flex min-w-0 flex-1 flex-col">
+        <span className="text-[13.5px] font-medium">{label}</span>
+        {sub && <span className="text-[12px] text-muted-foreground">{sub}</span>}
+      </span>
+      <Switch checked={checked} onCheckedChange={onChange} aria-label={label} />
+    </label>
+  );
+}
+
+// Radix Select can't hold an empty value, so "no fingerprint" gets a sentinel.
+const NO_FP = "none";
 
 export function ServerEditor({ nav, id }: { nav: Nav; id?: string }) {
   const profiles = useStore((s) => s.profiles);
@@ -277,41 +333,27 @@ export function ServerEditor({ nav, id }: { nav: Nav; id?: string }) {
   return (
     <Page title={existing ? "Edit server" : "New server"} onBack={nav.back}>
       {!existing && (
-        <div className="card list" style={{ marginBottom: 12 }}>
-          <div className="field" style={{ padding: "10px 10px 0" }}>
-            <label htmlFor="kind">Protocol</label>
-            <select id="kind" className="input" value={k} onChange={(e) => setF({ ...EMPTY, name: f.name, server: f.server, kind: e.target.value as Kind, port: e.target.value === "wireguard" ? "51820" : "443" })}>
-              {KINDS.map((o) => (
-                <option key={o.value} value={o.value}>
-                  {o.label}
-                </option>
-              ))}
-            </select>
-          </div>
-          <p className="hint" style={{ margin: "0 12px 10px" }}>
-            {KINDS.find((o) => o.value === k)?.note}
-          </p>
-        </div>
+        <Card className="gap-2 p-4">
+          <Choice
+            id="kind"
+            label="Protocol"
+            value={k}
+            onChange={(v) => setF({ ...EMPTY, name: f.name, server: f.server, kind: v as Kind, port: v === "wireguard" ? "51820" : "443" })}
+            options={KINDS.map((o) => ({ value: o.value, label: o.label }))}
+          />
+          <Hint className="px-0.5">{KINDS.find((o) => o.value === k)?.note}</Hint>
+        </Card>
       )}
-      <div className="card" style={{ padding: 14 }}>
+      <Card className="gap-3 p-4">
         <Field id="name" label="Name" value={f.name} onChange={set("name")} placeholder="My VPS" />
-        <div className="field-row">
-          <Field id="server" label="Server address" value={f.server} onChange={set("server")} placeholder="203.0.113.10 or vps.example.com" />
+        <div className="grid grid-cols-[1fr_96px] gap-2.5">
+          <Field id="server" label="Server address" value={f.server} onChange={set("server")} placeholder="203.0.113.10" />
           <Field id="port" label="Port" value={f.port} onChange={(v) => set("port")(v.replace(/\D/g, "").slice(0, 5))} />
         </div>
         {(k === "reality" || k === "vless-tls" || k === "tuic") && <Field id="uuid" label="UUID" value={f.uuid} onChange={set("uuid")} secret mono />}
         {k === "naive" && <Field id="user" label="Username" value={f.username} onChange={set("username")} />}
         {["trojan", "shadowsocks", "hysteria2", "tuic", "anytls", "naive"].includes(k) && <Field id="pw" label="Password" value={f.password} onChange={set("password")} secret mono={k === "shadowsocks"} />}
-        {k === "shadowsocks" && (
-          <div className="field">
-            <label htmlFor="m">Cipher</label>
-            <select id="m" className="input" value={f.method} onChange={(e) => set("method")(e.target.value)}>
-              {SS_METHODS.map((m) => (
-                <option key={m}>{m}</option>
-              ))}
-            </select>
-          </div>
-        )}
+        {k === "shadowsocks" && <Choice id="m" label="Cipher" value={f.method} onChange={set("method")} options={SS_METHODS.map((m) => ({ value: m, label: m }))} />}
         {k === "reality" && (
           <>
             <Field id="sni" label="Camouflage site (SNI)" value={f.sni} onChange={set("sni")} placeholder="www.example.com" />
@@ -327,78 +369,44 @@ export function ServerEditor({ nav, id }: { nav: Nav; id?: string }) {
             <Field id="addr" label="Interface addresses" value={f.addresses} onChange={set("addresses")} placeholder="10.66.0.2/32, fd00:66::2/128" mono />
           </>
         )}
-        {k === "hysteria2" && (
-          <div className="row" style={{ padding: "4px 2px", minHeight: 40 }}>
-            <span className="text">
-              <span className="value" style={{ fontWeight: 540 }}>
-                Salamander obfuscation
-              </span>
-              <span className="sub">Only if your server requires it</span>
-            </span>
-            <Toggle checked={f.obfs} onChange={set("obfs")} label="Salamander obfuscation" />
-          </div>
-        )}
+        {k === "hysteria2" && <SwitchField label="Salamander obfuscation" sub="Only if your server requires it" checked={f.obfs} onChange={set("obfs")} />}
         {k === "hysteria2" && f.obfs && <Field id="obfs" label="Obfuscation password" value={f.obfsPassword} onChange={set("obfsPassword")} secret />}
-        {k === "naive" && (
-          <div className="row" style={{ padding: "4px 2px", minHeight: 40 }}>
-            <span className="text">
-              <span className="value" style={{ fontWeight: 540 }}>
-                Use QUIC
-              </span>
-            </span>
-            <Toggle checked={f.quic} onChange={set("quic")} label="Use QUIC" />
-          </div>
-        )}
-        {error && <div className="error-text">{error}</div>}
-        <button className="btn primary block" style={{ marginTop: 6 }} disabled={busy || !f.server.trim()} onClick={submit}>
-          {busy ? <span className="spinner" /> : <Icon name="check" />} Save
-        </button>
-      </div>
+        {k === "naive" && <SwitchField label="Use QUIC" checked={f.quic} onChange={set("quic")} />}
+        {error && <Hint className="px-0.5 text-destructive">{error}</Hint>}
+        <Button size="lg" className="mt-1 w-full" disabled={busy || !f.server.trim()} onClick={submit}>
+          {busy ? <LoaderCircle className="animate-spin" /> : <Check />} Save
+        </Button>
+      </Card>
 
-      <details className="advanced">
-        <summary>
-          <Icon name="chevron" /> Advanced
-        </summary>
-        <div className="card" style={{ padding: 14 }}>
+      <Advanced>
+        <Card className="gap-3 p-4">
           {(k === "reality" || k === "vless-tls" || k === "trojan" || k === "anytls") && (
-            <div className="field">
-              <label htmlFor="fp">Browser fingerprint (uTLS)</label>
-              <select id="fp" className="input" value={f.fingerprint} onChange={(e) => set("fingerprint")(e.target.value)}>
-                {k !== "reality" && <option value="">None (Go TLS)</option>}
-                {FINGERPRINTS.map((x) => (
-                  <option key={x}>{x}</option>
-                ))}
-              </select>
-            </div>
+            <Choice
+              id="fp"
+              label="Browser fingerprint (uTLS)"
+              value={f.fingerprint || NO_FP}
+              onChange={(v) => set("fingerprint")(v === NO_FP ? "" : v)}
+              options={[...(k !== "reality" ? [{ value: NO_FP, label: "None (Go TLS)" }] : []), ...FINGERPRINTS.map((x) => ({ value: x, label: x }))]}
+            />
           )}
-          {(k === "reality" || (k === "vless-tls" && f.transport === "tcp")) && (
-            <div className="row" style={{ padding: "4px 2px", minHeight: 40, marginBottom: 8 }}>
-              <span className="text">
-                <span className="value" style={{ fontWeight: 540 }}>
-                  XTLS-Vision
-                </span>
-                <span className="sub">Hides TLS-in-TLS patterns and avoids double encryption</span>
-              </span>
-              <Toggle checked={f.vision} onChange={set("vision")} label="XTLS-Vision" />
-            </div>
-          )}
+          {(k === "reality" || (k === "vless-tls" && f.transport === "tcp")) && <SwitchField label="XTLS-Vision" sub="Hides TLS-in-TLS patterns" checked={f.vision} onChange={set("vision")} />}
           {(k === "vless-tls" || k === "trojan") && (
             <>
-              <div className="field">
-                <label>Transport</label>
+              <FieldShell label="Transport">
                 <Seg
                   label="Transport"
                   value={f.transport}
                   onChange={set("transport")}
+                  className="w-full"
                   options={[
                     { value: "tcp", label: "TCP" },
                     { value: "ws", label: "WebSocket" },
                     { value: "grpc", label: "gRPC" },
                   ]}
                 />
-              </div>
+              </FieldShell>
               {f.transport === "ws" && (
-                <div className="field-row">
+                <div className="grid grid-cols-2 gap-2.5">
                   <Field id="path" label="Path" value={f.path} onChange={set("path")} />
                   <Field id="hh" label="Host header" value={f.hostHeader} onChange={set("hostHeader")} />
                 </div>
@@ -407,43 +415,38 @@ export function ServerEditor({ nav, id }: { nav: Nav; id?: string }) {
             </>
           )}
           {k === "tuic" && (
-            <div className="field">
-              <label>Congestion control</label>
+            <FieldShell label="Congestion control">
               <Seg
                 label="Congestion control"
                 value={f.cc}
                 onChange={set("cc")}
+                className="w-full"
                 options={[
                   { value: "bbr", label: "BBR" },
                   { value: "cubic", label: "CUBIC" },
                   { value: "new_reno", label: "NewReno" },
                 ]}
               />
-            </div>
+            </FieldShell>
           )}
-          {["vless-tls", "trojan", "hysteria2", "tuic", "anytls"].includes(k) && (
-            <Field id="pin" label="Pinned public key (SHA-256, base64)" value={f.pin} onChange={set("pin")} mono placeholder="Optional: trust exactly this server key" />
-          )}
+          {["vless-tls", "trojan", "hysteria2", "tuic", "anytls"].includes(k) && <Field id="pin" label="Pinned public key (SHA-256, base64)" value={f.pin} onChange={set("pin")} mono placeholder="Optional" />}
           {["vless-tls", "trojan", "hysteria2", "tuic", "anytls", "naive"].includes(k) && (
-            <div className="field">
-              <label htmlFor="cert">Extra trusted certificate (PEM)</label>
-              <textarea id="cert" className="input" rows={3} value={f.certificate} onChange={(e) => set("certificate")(e.target.value)} placeholder="-----BEGIN CERTIFICATE-----" />
-            </div>
+            <FieldShell id="cert" label="Extra trusted certificate (PEM)">
+              <Textarea id="cert" rows={3} className="font-mono text-[11.5px]" value={f.certificate} onChange={(e) => set("certificate")(e.target.value)} placeholder="-----BEGIN CERTIFICATE-----" />
+            </FieldShell>
           )}
           {k === "wireguard" && (
             <>
               <Field id="psk" label="Pre-shared key" value={f.psk} onChange={set("psk")} secret mono />
-              <div className="field-row">
+              <div className="grid grid-cols-2 gap-2.5">
                 <Field id="mtu" label="MTU" value={f.mtu} onChange={(v) => set("mtu")(v.replace(/\D/g, ""))} placeholder="1408" />
                 <Field id="ka" label="Keepalive (s)" value={f.keepalive} onChange={(v) => set("keepalive")(v.replace(/\D/g, ""))} />
               </div>
             </>
           )}
-          <p className="hint" style={{ margin: 0 }}>
-            Certificates are always verified. There is deliberately no “allow insecure” option.
-          </p>
-        </div>
-      </details>
+          <Hint className="px-0.5">Certificates are always verified.</Hint>
+        </Card>
+      </Advanced>
     </Page>
   );
 }

@@ -1,10 +1,16 @@
 import { useEffect, useState } from "react";
-import { Icon } from "../components/Icon";
-import { PowerSwitch, type Visual } from "../components/PowerSwitch";
-import { api, errorText } from "../lib/api";
-import { country, duration, rate } from "../lib/format";
-import { toast, useStore } from "../lib/store";
-import type { Mode, Status } from "../lib/types";
+import { AnimatePresence, motion } from "motion/react";
+import { ArrowDown, ArrowUp, Globe, Lock, Server, Shield, ShieldCheck, TriangleAlert, Wrench } from "lucide-react";
+import { NavRow, Notice, Pill, SettingRow } from "@/components/Controls";
+import { PowerSwitch, type Visual } from "@/components/PowerSwitch";
+import { SessionStats } from "@/components/SessionStats";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { api, errorText } from "@/lib/api";
+import { country, rate } from "@/lib/format";
+import { easeOut } from "@/lib/motion";
+import { toast, useStore } from "@/lib/store";
+import type { Mode, Status } from "@/lib/types";
 import type { Nav } from "../App";
 
 export function visualFor(status: Status | null, mode: Mode, serviceUp: boolean, pending: boolean): Visual {
@@ -32,13 +38,19 @@ function useNow(active: boolean) {
   const [now, setNow] = useState(Date.now());
   useEffect(() => {
     if (!active) return;
+    setNow(Date.now());
     const t = window.setInterval(() => setNow(Date.now()), 1000);
     return () => window.clearInterval(t);
   }, [active]);
   return now;
 }
 
-const TRANSPORT_LABEL = { doh: "DNS-over-HTTPS", doh3: "DNS-over-HTTPS/3", dot: "DNS-over-TLS" } as const;
+const TRANSPORT = { doh: "HTTPS", doh3: "HTTP/3", dot: "TLS" } as const;
+
+const LABELS: Record<Mode, Record<Visual, string>> = {
+  lotus: { off: "Not protected", connecting: "Connecting", on: "Protected", reconnecting: "Reconnecting", disconnecting: "Turning off", error: "Needs attention" },
+  shadow: { off: "Not connected", connecting: "Connecting", on: "Connected", reconnecting: "Reconnecting", disconnecting: "Disconnecting", error: "Connection failed" },
+};
 
 export function Home({ nav }: { nav: Nav }) {
   const settings = useStore((s) => s.settings)!;
@@ -47,15 +59,18 @@ export function Home({ nav }: { nav: Nav }) {
   const profiles = useStore((s) => s.profiles);
   const providers = useStore((s) => s.providers);
   const storeWarning = useStore((s) => s.storeWarning);
+  const last = useStore((s) => s.lastSession);
   const [pending, setPending] = useState(false);
   const mode = settings.mode;
   const visual = visualFor(status, mode, service.connected, pending);
   const on = visual === "on";
-  const now = useNow(on || visual === "reconnecting");
+  const live = status && status.mode === mode ? status : null;
+  const running = on || visual === "reconnecting";
+  const now = useNow(running);
   const selected = profiles.find((p) => p.id === settings.selected_profile) ?? null;
   const provider = settings.lotus.provider === "custom" ? null : providers.find((p) => p.id === settings.lotus.provider);
   const providerName = settings.lotus.provider === "custom" ? "Custom resolver" : provider?.name ?? "";
-  const live = status && status.mode === mode ? status : null;
+  const reduced = settings.motion === "reduce";
 
   async function toggle() {
     if (visual === "on" || visual === "connecting" || visual === "reconnecting") {
@@ -81,63 +96,49 @@ export function Home({ nav }: { nav: Nav }) {
     }
   }
 
-  // ----- copy --------------------------------------------------------------
-  const serverName = live?.profile_name ?? selected?.name ?? "your server";
-  let label = "";
-  let sub = "";
-  if (mode === "lotus") {
-    label = { off: "Not protected", connecting: "Securing DNS…", on: "DNS protected", reconnecting: "Reconnecting…", disconnecting: "Turning off…", error: "Needs attention" }[visual];
-    sub = {
-      off: "Encrypt every DNS lookup on this device. Your IP address stays the same.",
-      connecting: "Starting the encrypted resolver",
-      on: `Lookups are encrypted with ${providerName}. Your IP address stays the same.`,
-      reconnecting: "Restarting encrypted DNS",
-      disconnecting: "Restoring your original DNS settings",
-      error: live?.error?.message ?? "Something went wrong",
-    }[visual];
-  } else {
-    label = { off: "Not connected", connecting: "Connecting…", on: "Connected", reconnecting: "Reconnecting…", disconnecting: "Disconnecting…", error: "Connection failed" }[visual];
-    sub = {
-      off: selected ? `Route this whole device through ${selected.name}.` : "Add your own server to get started.",
-      connecting: `Reaching ${serverName} securely`,
-      on: `All traffic leaves the internet from ${serverName}.`,
-      reconnecting: live?.kill_switch_engaged ? "The kill switch is holding traffic until the tunnel is back." : live?.error?.message ?? `Trying to reach ${serverName}`,
-      disconnecting: "Restoring normal routing",
-      error: live?.error?.message ?? "Something went wrong",
-    }[visual];
-  }
-
-  const since = live?.connected_since ?? null;
-  const elapsed = on && since ? duration(now - since) : "—";
+  const label = LABELS[mode][visual];
+  const idle = mode === "lotus" ? "Encrypt DNS without changing your IP." : selected ? `Exit through ${selected.name}` : "Add a server to get started.";
   const blocking = [settings.lotus.block_trackers && "Trackers", (live?.protections.find((p) => p.id === "malware")?.active ?? (settings.lotus.block_malware && provider?.malware_variant)) && "Malware"]
     .filter(Boolean)
     .join(" · ");
 
   return (
-    <div className="page home">
-      <section className="hero">
-        <div className="status-label" aria-live="polite">
-          <span className="fade" key={`${mode}-${label}`}>
-            {label}
-          </span>
+    <div className="flex h-full flex-col px-4 pb-3">
+      <section className="flex min-h-[236px] flex-1 flex-col items-center justify-center gap-4">
+        <div className="grid h-8 place-items-center" aria-live="polite">
+          <AnimatePresence mode="popLayout" initial={false}>
+            <motion.h2
+              key={`${mode}-${label}`}
+              initial={{ opacity: 0, y: 8, filter: "blur(6px)" }}
+              animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
+              exit={{ opacity: 0, y: -8, filter: "blur(6px)" }}
+              transition={{ duration: 0.22, ease: easeOut }}
+              className="m-0 text-[24px] font-semibold tracking-[-0.025em]"
+            >
+              {label}
+            </motion.h2>
+          </AnimatePresence>
         </div>
         <PowerSwitch visual={visual} mode={mode} onToggle={toggle} disabled={!service.connected} />
-        <div className={`status-sub ${visual === "error" ? "error" : ""}`}>
-          <span className="fade" key={`${mode}-${sub}`}>
-            {sub}
-          </span>
-        </div>
+        <SessionStats visual={visual} mode={mode} live={live} now={now} last={last} idle={idle} animated={!reduced} />
       </section>
 
-      {!service.connected ? (
-        <div className="banner">
-          <Icon name="alert" />
-          <div className="grow">
-            <strong>{service.message ?? "Connecting to the LOTUS service…"}</strong>
-            <div style={{ color: "var(--text-2)", marginTop: 2 }}>LOTUS needs its background service to change DNS and routing.</div>
-            <div className="actions">
-              <button
-                className="btn small"
+      <AnimatePresence mode="wait" initial={false}>
+        <motion.div
+          key={!service.connected ? "down" : mode}
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -4 }}
+          transition={{ duration: 0.2, ease: easeOut }}
+        >
+          {!service.connected ? (
+            <Notice icon={TriangleAlert}>
+              <div className="font-semibold">{service.message ?? "Connecting to the LOTUS service…"}</div>
+              <div className="mt-0.5 text-muted-foreground">LOTUS needs its background service to change DNS and routing.</div>
+              <Button
+                size="sm"
+                variant="secondary"
+                className="mt-2.5"
                 onClick={async () => {
                   try {
                     await api.repairService();
@@ -147,136 +148,64 @@ export function Home({ nav }: { nav: Nav }) {
                   }
                 }}
               >
-                <Icon name="wrench" /> Repair service
-              </button>
-            </div>
-          </div>
-        </div>
-      ) : mode === "lotus" ? (
-        <div className="card info" key="lotus-card">
-          <button className="row" onClick={() => nav.push({ name: "dns" })}>
-            <span className="chip">
-              <Icon name="lock" />
-            </span>
-            <span className="text">
-              <span className="label">Encrypted resolver</span>
-              <span className="value">
-                {providerName} · {TRANSPORT_LABEL[settings.lotus.transport]}
-              </span>
-            </span>
-            <span className="trail">
-              <Icon name="chevron" />
-            </span>
-          </button>
-          <button className="row" onClick={() => nav.push({ name: "dns" })}>
-            <span className="chip">
-              <Icon name="shield" />
-            </span>
-            <span className="text">
-              <span className="label">Blocking</span>
-              <span className="value">{blocking || "Off"}</span>
-            </span>
-            <span className="trail">
-              <Icon name="chevron" />
-            </span>
-          </button>
-          <div className="split">
-            <div className="row">
-              <span className="chip">
-                <Icon name="globe" />
-              </span>
-              <span className="text">
-                <span className="label">Your IP</span>
-                <span className="value" title={live?.exit?.ipv4 ?? undefined}>
-                  Unchanged
-                </span>
-              </span>
-            </div>
-            <div className="row">
-              <span className="chip">
-                <Icon name="clock" />
-              </span>
-              <span className="text">
-                <span className="label">Protected for</span>
-                <span className="value mono">{elapsed}</span>
-              </span>
-            </div>
-          </div>
-        </div>
-      ) : (
-        <div className="card info" key="shadow-card">
-          <button className="row" onClick={() => nav.push({ name: selected ? "servers" : "add-server" })}>
-            <span className="chip">
-              <Icon name="server" />
-            </span>
-            <span className="text">
-              <span className="label">Exit server</span>
-              <span className="value">{selected?.name ?? "Add your server"}</span>
-              {selected && <span className="sub">{live?.protocol_label ?? labelFor(selected.protocol.type)}</span>}
-            </span>
-            <span className="trail">
-              <Icon name="chevron" />
-            </span>
-          </button>
-          <div className="row">
-            <span className="chip">
-              <Icon name="globe" />
-            </span>
-            <span className="text">
-              <span className="label">Exit IP</span>
-              <span className="value mono">{on && live?.exit?.ipv4 ? live.exit.ipv4 : "—"}</span>
-            </span>
-            {on && live?.exit?.country && <span className="pill accent">{country(live.exit.country)}</span>}
-          </div>
-          <div className="split">
-            <div className="row">
-              <span className="chip">
-                <Icon name="clock" />
-              </span>
-              <span className="text">
-                <span className="label">Connected</span>
-                <span className="value mono">{elapsed}</span>
-              </span>
-            </div>
-            <div className="row">
-              <span className="chip">
-                <Icon name="pulse" />
-              </span>
-              <span className="text">
-                <span className="label">Latency</span>
-                <span className="value mono">{on && live?.latency_ms != null ? `${live.latency_ms} ms` : "—"}</span>
-              </span>
-            </div>
-          </div>
-        </div>
-      )}
+                <Wrench /> Repair service
+              </Button>
+            </Notice>
+          ) : mode === "lotus" ? (
+            <Card className="p-1">
+              <NavRow icon={Lock} kicker="Resolver" label={`${providerName} · ${TRANSPORT[settings.lotus.transport]}`} onClick={() => nav.push({ name: "dns" })} />
+              <NavRow icon={Shield} kicker="Blocking" label={blocking || "Off"} onClick={() => nav.push({ name: "dns" })} />
+            </Card>
+          ) : (
+            <Card className="p-1">
+              <NavRow
+                icon={Server}
+                kicker="Exit server"
+                label={selected?.name ?? "Add your server"}
+                value={selected ? live?.protocol_label ?? labelFor(selected.protocol.type) : undefined}
+                onClick={() => nav.push({ name: selected ? "servers" : "add-server" })}
+              />
+              <SettingRow icon={Globe} kicker="Exit IP" label={running && live?.exit?.ipv4 ? live.exit.ipv4 : "—"} mono={running && !!live?.exit?.ipv4}>
+                {running && live?.exit?.country && <Pill tone="accent">{country(live.exit.country)}</Pill>}
+              </SettingRow>
+            </Card>
+          )}
+        </motion.div>
+      </AnimatePresence>
 
       {storeWarning && (
-        <div className="banner" style={{ marginTop: 10 }}>
-          <Icon name="alert" />
-          <div className="grow">{storeWarning}</div>
+        <div className="mt-2.5">
+          <Notice icon={TriangleAlert}>{storeWarning}</Notice>
         </div>
       )}
 
-      <div className="footer">
-        {mode === "shadow" && (on || visual === "reconnecting") ? (
-          <div className="traffic" aria-label="Current traffic">
-            <span className="up" title="Upload">
-              <Icon name="up" /> {rate(live?.traffic.up_rate ?? 0)}
-            </span>
-            <span className="down" title="Download">
-              <Icon name="down" /> {rate(live?.traffic.down_rate ?? 0)}
-            </span>
-          </div>
+      <footer className="flex h-11 shrink-0 items-center justify-between gap-2 pt-2.5">
+        {mode === "shadow" && running ? (
+          live?.kill_switch_engaged && visual === "reconnecting" ? (
+            <Pill tone="warn">
+              <Shield /> Kill switch holding traffic
+            </Pill>
+          ) : (
+            <div className="flex gap-3.5 pl-1 font-mono text-[11.5px] text-muted-foreground tabular-nums" aria-label="Current traffic">
+              <span className="inline-flex min-w-[78px] items-center gap-1">
+                <ArrowUp className="size-3 text-accent-2" /> {rate(live?.traffic.up_rate ?? 0)}
+              </span>
+              <span className="inline-flex min-w-[78px] items-center gap-1">
+                <ArrowDown className="size-3 text-primary" /> {rate(live?.traffic.down_rate ?? 0)}
+              </span>
+            </div>
+          )
+        ) : mode === "shadow" && settings.shadow.kill_switch ? (
+          <Pill>
+            <Shield /> Kill switch on
+          </Pill>
         ) : (
-          <span className="pill" style={{ visibility: mode === "shadow" && settings.shadow.kill_switch ? "visible" : "hidden" }}>
-            <Icon name="shield" /> Kill switch on
-          </span>
+          <span />
         )}
-        <button className="link-btn" onClick={() => nav.push({ name: "diagnostics" })}>
-          <Icon name="shieldCheck" /> Privacy check
-        </button>
-      </div>
+        <Button variant="ghost" size="sm" onClick={() => nav.push({ name: "diagnostics" })}>
+          <ShieldCheck /> Privacy check
+        </Button>
+      </footer>
     </div>
   );
 }

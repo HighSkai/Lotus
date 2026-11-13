@@ -1,95 +1,201 @@
-import type { ReactNode } from "react";
-import { Icon } from "./Icon";
+import { useId, useState, type ReactNode } from "react";
+import { motion } from "motion/react";
+import { ChevronLeft, ChevronRight, type LucideIcon } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { spring } from "@/lib/motion";
+import { startWindowDrag } from "@/lib/window";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { Switch } from "@/components/ui/switch";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 
-export function Toggle({ checked, onChange, disabled, label }: { checked: boolean; onChange: (v: boolean) => void; disabled?: boolean; label: string }) {
-  return <button type="button" className="toggle" role="switch" aria-checked={checked} aria-label={label} disabled={disabled} onClick={() => onChange(!checked)} />;
-}
-
-export function Seg<T extends string>({ value, options, onChange, label }: { value: T; options: { value: T; label: string; disabled?: boolean }[]; onChange: (v: T) => void; label: string }) {
-  return (
-    <div className="seg" role="group" aria-label={label}>
-      {options.map((o) => (
-        <button key={o.value} type="button" aria-pressed={o.value === value} disabled={o.disabled} onClick={() => onChange(o.value)}>
-          {o.label}
-        </button>
-      ))}
-    </div>
-  );
-}
-
-export function SettingRow({ icon, label, sub, children }: { icon?: string; label: string; sub?: ReactNode; children?: ReactNode }) {
-  return (
-    <div className="row">
-      {icon && (
-        <span className="chip">
-          <Icon name={icon} />
-        </span>
-      )}
-      <span className="text">
-        <span className="value" style={{ fontWeight: 540 }}>
-          {label}
-        </span>
-        {sub && <span className="sub" style={{ whiteSpace: "normal" }}>{sub}</span>}
-      </span>
-      {children && <span className="trail">{children}</span>}
-    </div>
-  );
-}
-
-export function ToggleRow({ icon, label, sub, checked, onChange, disabled }: { icon?: string; label: string; sub?: ReactNode; checked: boolean; onChange: (v: boolean) => void; disabled?: boolean }) {
-  return (
-    <SettingRow icon={icon} label={label} sub={sub}>
-      <Toggle checked={checked} onChange={onChange} disabled={disabled} label={label} />
-    </SettingRow>
-  );
-}
-
-export function NavRow({ icon, label, sub, onClick, trail }: { icon: string; label: string; sub?: ReactNode; onClick: () => void; trail?: ReactNode }) {
-  return (
-    <button type="button" className="row" onClick={onClick}>
-      <span className="chip">
-        <Icon name={icon} />
-      </span>
-      <span className="text">
-        <span className="value" style={{ fontWeight: 540 }}>
-          {label}
-        </span>
-        {sub && <span className="sub">{sub}</span>}
-      </span>
-      <span className="trail">
-        {trail}
-        <Icon name="chevron" />
-      </span>
-    </button>
-  );
-}
-
-export function RadioRow({ label, sub, checked, onSelect, disabled }: { label: string; sub?: ReactNode; checked: boolean; onSelect: () => void; disabled?: boolean }) {
-  return (
-    <button type="button" className="row radio-row" role="radio" aria-checked={checked} onClick={onSelect} disabled={disabled}>
-      <span className="mark" />
-      <span className="text">
-        <span className="value" style={{ fontWeight: 540 }}>
-          {label}
-        </span>
-        {sub && <span className="sub" style={{ whiteSpace: "normal" }}>{sub}</span>}
-      </span>
-    </button>
-  );
-}
+/* ---------- Layout ------------------------------------------------------ */
 
 export function Page({ title, onBack, children, actions }: { title: string; onBack: () => void; children: ReactNode; actions?: ReactNode }) {
   return (
-    <div className="page page-overlay">
-      <div className="page-head">
-        <button className="icon-btn" onClick={onBack} aria-label="Back">
-          <Icon name="back" />
-        </button>
-        <h1>{title}</h1>
-        <span className="spacer" />
+    <div className="flex h-full flex-col">
+      <div className="flex h-11 shrink-0 items-center gap-1 pr-3 pl-2" onMouseDown={startWindowDrag}>
+        <IconButton label="Back" onClick={onBack}>
+          <ChevronLeft className="size-[18px]" />
+        </IconButton>
+        <h1 className="m-0 text-[17px] font-semibold tracking-[-0.015em]">{title}</h1>
+        <span className="flex-1" />
         {actions}
       </div>
-      <div className="page-body">{children}</div>
+      <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-4 pt-1 pb-6 *:shrink-0">{children}</div>
     </div>
   );
+}
+
+/** A grouped glass list, optionally titled. */
+export function List({ title, hint, children, className }: { title?: string; hint?: ReactNode; children: ReactNode; className?: string }) {
+  return (
+    <section className="flex flex-col">
+      {title && <SectionTitle>{title}</SectionTitle>}
+      <Card className={cn("p-1", className)}>{children}</Card>
+      {hint && <Hint className="mt-2">{hint}</Hint>}
+    </section>
+  );
+}
+
+export function SectionTitle({ children }: { children: ReactNode }) {
+  return <div className="px-3 pt-1 pb-1.5 text-[11px] font-semibold tracking-[0.08em] text-faint uppercase">{children}</div>;
+}
+
+export function Hint({ children, className }: { children: ReactNode; className?: string }) {
+  return <p className={cn("m-0 px-3 text-[12px] leading-relaxed text-faint", className)}>{children}</p>;
+}
+
+/* ---------- Rows -------------------------------------------------------- */
+
+const rowBase =
+  "relative flex w-full min-h-[50px] items-center gap-3 rounded-[18px] px-3 py-2 text-left not-first:before:absolute not-first:before:top-0 not-first:before:right-3 not-first:before:left-3 not-first:before:h-px not-first:before:bg-border";
+
+export function Chip({ icon: I, className }: { icon: LucideIcon; className?: string }) {
+  return (
+    <span className={cn("grid size-[30px] shrink-0 place-items-center rounded-[10px] bg-primary/10 text-primary", className)}>
+      <I className="size-4" strokeWidth={1.9} />
+    </span>
+  );
+}
+
+function RowText({ label, sub, kicker, mono }: { label: ReactNode; sub?: ReactNode; kicker?: ReactNode; mono?: boolean }) {
+  return (
+    <span className="flex min-w-0 flex-1 flex-col gap-px">
+      {kicker && <span className="text-[11.5px] text-faint">{kicker}</span>}
+      <span className={cn("truncate text-[13.5px] font-medium", mono && "font-mono text-[12.5px] tabular-nums")}>{label}</span>
+      {sub && <span className="text-[12px] leading-snug text-muted-foreground">{sub}</span>}
+    </span>
+  );
+}
+
+export function SettingRow({ icon, label, sub, kicker, mono, children }: { icon?: LucideIcon; label: ReactNode; sub?: ReactNode; kicker?: ReactNode; mono?: boolean; children?: ReactNode }) {
+  return (
+    <div className={rowBase}>
+      {icon && <Chip icon={icon} />}
+      <RowText label={label} sub={sub} kicker={kicker} mono={mono} />
+      {children && <span className="flex shrink-0 items-center gap-2 text-[12.5px] text-muted-foreground">{children}</span>}
+    </div>
+  );
+}
+
+export function NavRow({ icon, label, sub, kicker, value, onClick }: { icon: LucideIcon; label: ReactNode; sub?: ReactNode; kicker?: ReactNode; value?: ReactNode; onClick: () => void }) {
+  return (
+    <button type="button" data-spot className={cn(rowBase, "transition-colors active:bg-fill")} onClick={onClick}>
+      <Chip icon={icon} />
+      <RowText label={label} sub={sub} kicker={kicker} />
+      <span className="flex shrink-0 items-center gap-1 text-[12.5px] text-faint">
+        {value != null && <span className="max-w-[120px] truncate">{value}</span>}
+        <ChevronRight className="size-4" />
+      </span>
+    </button>
+  );
+}
+
+export function ToggleRow({ icon, label, sub, checked, onChange, disabled }: { icon?: LucideIcon; label: string; sub?: ReactNode; checked: boolean; onChange: (v: boolean) => void; disabled?: boolean }) {
+  return (
+    <label data-spot className={cn(rowBase, disabled ? "cursor-default" : "cursor-pointer")}>
+      {icon && <Chip icon={icon} />}
+      <RowText label={label} sub={sub} />
+      <Switch checked={checked} onCheckedChange={onChange} disabled={disabled} aria-label={label} />
+    </label>
+  );
+}
+
+export function RadioList<T extends string>({ value, onChange, options, label }: { value: T; onChange: (v: T) => void; options: { value: T; label: string; sub?: ReactNode; disabled?: boolean }[]; label: string }) {
+  return (
+    <RadioGroup value={value} onValueChange={(v) => onChange(v as T)} aria-label={label} className="gap-0">
+      {options.map((o) => (
+        <label key={o.value} data-spot className={cn(rowBase, "cursor-pointer")}>
+          <RadioGroupItem value={o.value} disabled={o.disabled} className="size-[18px]" />
+          <RowText label={o.label} sub={o.sub} />
+        </label>
+      ))}
+    </RadioGroup>
+  );
+}
+
+/* ---------- Controls ---------------------------------------------------- */
+
+/** Segmented control with a sliding glass pill. */
+export function Seg<T extends string>({ value, options, onChange, label, className }: { value: T; options: { value: T; label: string; disabled?: boolean }[]; onChange: (v: T) => void; label: string; className?: string }) {
+  const id = useId();
+  return (
+    <ToggleGroup type="single" spacing={0.5} value={value} onValueChange={(v) => v && onChange(v as T)} aria-label={label} className={cn("rounded-full bg-fill p-[3px]", className)}>
+      {options.map((o) => (
+        <ToggleGroupItem
+          key={o.value}
+          value={o.value}
+          disabled={o.disabled}
+          className="relative h-7 flex-1 rounded-full px-3 text-[12px] font-medium text-muted-foreground hover:bg-transparent hover:text-foreground data-[state=on]:bg-transparent data-[state=on]:text-foreground"
+        >
+          {o.value === value && <motion.span layoutId={id} transition={spring} className="absolute inset-0 rounded-full bg-white shadow-[0_1px_3px_rgb(0_0_0/0.1),0_4px_12px_-6px_var(--shadow)] dark:bg-white/14" />}
+          <span className="relative">{o.label}</span>
+        </ToggleGroupItem>
+      ))}
+    </ToggleGroup>
+  );
+}
+
+export function IconButton({ label, children, onClick, className, disabled, variant = "ghost" }: { label: string; children: ReactNode; onClick?: () => void; className?: string; disabled?: boolean; variant?: "ghost" | "secondary" | "destructive" }) {
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Button variant={variant} size="icon-sm" aria-label={label} onClick={onClick} disabled={disabled} className={className}>
+          {children}
+        </Button>
+      </TooltipTrigger>
+      <TooltipContent>{label}</TooltipContent>
+    </Tooltip>
+  );
+}
+
+/** A collapsed "Advanced" section. */
+export function Advanced({ children, label = "Advanced" }: { children: ReactNode; label?: string }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <Collapsible open={open} onOpenChange={setOpen}>
+      <CollapsibleTrigger asChild>
+        <button type="button" data-spot className="flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[12.5px] font-medium text-muted-foreground transition-colors hover:text-foreground">
+          <motion.span animate={{ rotate: open ? 90 : 0 }} transition={spring} className="grid place-items-center">
+            <ChevronRight className="size-3.5" />
+          </motion.span>
+          {label}
+        </button>
+      </CollapsibleTrigger>
+      <CollapsibleContent className="overflow-hidden data-open:animate-collapsible-down data-closed:animate-collapsible-up">
+        <div className="flex flex-col gap-3 pt-2">{children}</div>
+      </CollapsibleContent>
+    </Collapsible>
+  );
+}
+
+/** Tinted glass notice for errors and warnings. */
+export function Notice({ icon: I, tone = "bad", children }: { icon: LucideIcon; tone?: "bad" | "info"; children: ReactNode }) {
+  return (
+    <div
+      className={cn(
+        "glass flex items-start gap-3 rounded-[20px] p-3.5 text-[12.5px]",
+        tone === "bad" ? "bg-[color-mix(in_srgb,var(--destructive)_9%,var(--glass))]" : "bg-[color-mix(in_srgb,var(--primary)_8%,var(--glass))]",
+      )}
+    >
+      <I className={cn("mt-px size-[18px] shrink-0", tone === "bad" ? "text-destructive" : "text-primary")} />
+      <div className="min-w-0 flex-1">{children}</div>
+    </div>
+  );
+}
+
+/** Small status capsule. */
+export function Pill({ tone = "neutral", children, className }: { tone?: "neutral" | "good" | "bad" | "warn" | "accent"; children: ReactNode; className?: string }) {
+  const tones = {
+    neutral: "bg-fill text-muted-foreground",
+    good: "bg-good/14 text-good",
+    bad: "bg-destructive/12 text-destructive",
+    warn: "bg-warn/15 text-warn",
+    accent: "bg-primary/12 text-primary",
+  } as const;
+  return <span className={cn("inline-flex h-6 items-center gap-1.5 rounded-full px-2.5 text-[11.5px] font-medium whitespace-nowrap [&_svg]:size-3", tones[tone], className)}>{children}</span>;
 }
