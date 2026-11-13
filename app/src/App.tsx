@@ -33,6 +33,7 @@ const GeneralSettings = screen("settings", "GeneralSettings");
 const DnsSettings = screen("settings", "DnsSettings");
 const ConnectionSettings = screen("settings", "ConnectionSettings");
 const KillSwitchSettings = screen("settings", "KillSwitchSettings");
+const SplitSettings = screen("settings", "SplitSettings");
 const AdvancedSettings = screen("settings", "AdvancedSettings");
 const LogsPage = screen("settings", "LogsPage");
 const About = screen("settings", "About");
@@ -47,7 +48,7 @@ const Console = screen("console", "Console");
 const Usage = screen("usage", "Usage");
 
 export type Route =
-  | { name: "settings" | "general" | "dns" | "connection" | "killswitch" | "servers" | "add-server" | "setup" | "diagnostics" | "speed" | "advanced" | "about" | "logs" | "updates" | "console" | "usage" }
+  | { name: "settings" | "general" | "dns" | "connection" | "split" | "killswitch" | "servers" | "add-server" | "setup" | "diagnostics" | "speed" | "advanced" | "about" | "logs" | "updates" | "console" | "usage" }
   | { name: "edit-server"; id?: string };
 
 export interface Nav {
@@ -69,6 +70,8 @@ function Screen({ route, nav }: { route: Route; nav: Nav }) {
       return <ConnectionSettings nav={nav} />;
     case "killswitch":
       return <KillSwitchSettings nav={nav} />;
+    case "split":
+      return <SplitSettings nav={nav} />;
     case "servers":
       return <Servers nav={nav} />;
     case "add-server":

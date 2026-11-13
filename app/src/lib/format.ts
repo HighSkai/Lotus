@@ -1,3 +1,5 @@
+import type { ShadowOptions, SplitTunnel } from "./types";
+
 export function rate(bytesPerSec: number): string {
   if (bytesPerSec < 1024) return `${bytesPerSec} B/s`;
   if (bytesPerSec < 1024 * 1024) return `${(bytesPerSec / 1024).toFixed(bytesPerSec < 10 * 1024 ? 1 : 0)} KB/s`;
@@ -59,4 +61,55 @@ export function country(code: string | null | undefined): string | null {
 
 export function hostLabel(server: string, port: number): string {
   return `${server.includes(":") ? `[${server}]` : server}:${port}`;
+}
+
+
+const count = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
+
+/** "2 apps and 1 site". */
+export function splitItems(s: SplitTunnel): string {
+  const a = s.apps.length;
+  const x = s.sites.length;
+  if (a && x) return `${count(a, "app", "apps")} and ${count(x, "site", "sites")}`;
+  return a ? count(a, "app", "apps") : count(x, "site", "sites");
+}
+
+/** Short state of the split tunnel, as the settings rows show it. */
+export function splitLabel(s: SplitTunnel): string {
+  if (s.mode === "off" || (!s.apps.length && !s.sites.length)) return "Off";
+  return s.mode === "bypass" ? `Excludes ${splitItems(s)}` : `Only ${splitItems(s)}`;
+}
+
+/** What SHADOW sends through the server, or null for the default (everything). */
+export function routingLabel(o: ShadowOptions): string | null {
+  if (o.encrypt === "dns") return "DNS only";
+  const split = splitLabel(o.split);
+  const parts = [o.encrypt === "traffic" && "Traffic only", split !== "Off" && split].filter(Boolean);
+  return parts.length ? parts.join(" · ") : null;
+}
+
+/** A program name as the engine matches it ("C:\\Games\\Foo" -> "Foo.exe"), or null. */
+export function normalizeApp(input: string): string | null {
+  let s = input.trim().replace(/^"+|"+$/g, "");
+  s = s.split(/[\\/]/).pop() ?? "";
+  s = s.trim();
+  if (!s) return null;
+  if (!/\.exe$/i.test(s)) s += ".exe";
+  if (s.length < 5 || s.length > 100 || /[\\/:*?"<>|\u0000-\u001f]/.test(s)) return null;
+  return s;
+}
+
+/** A site entry as the engine stores it: lower-case domain, or address/prefix. */
+export function normalizeSite(input: string): string | null {
+  let s = input.trim().toLowerCase();
+  s = s.replace(/^[a-z][a-z0-9+.-]*:\/\//, "");
+  const cidr = /^\[?([0-9a-f:.]+)\]?(\/\d{1,3})?$/.exec(s);
+  if (cidr && (cidr[1].includes(":") || /^\d+\.\d+\.\d+\.\d+$/.test(cidr[1]))) {
+    if (!cidr[1].includes(":") && cidr[1].split(".").some((n) => Number(n) > 255)) return null;
+    return cidr[1] + (cidr[2] ?? "");
+  }
+  s = s.split(/[/?#]/)[0].replace(/:\d+$/, "").replace(/^(\*|www)\./, "").replace(/\.$/, "");
+  const label = /^(?!-)[a-z0-9-]{1,63}(?<!-)$/;
+  if (s.length > 253 || !s.includes(".") || !s.split(".").every((l) => label.test(l))) return null;
+  return s;
 }

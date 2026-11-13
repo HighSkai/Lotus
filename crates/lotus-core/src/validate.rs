@@ -385,5 +385,64 @@ pub fn validate_shadow_options(o: &ShadowOptions) -> R {
             return Err(err("mtu", "MTU must be between 1280 and 9000"));
         }
     }
+    validate_split(&o.split)
+}
+
+pub const SPLIT_MAX_APPS: usize = 64;
+pub const SPLIT_MAX_SITES: usize = 256;
+
+/// A split-tunnel site entry, as the engine matches it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum SplitSite {
+    /// Matches the domain and all its subdomains.
+    Domain(String),
+    /// An address or range in CIDR form (a bare address becomes /32 or /128).
+    Cidr(String),
+}
+
+/// Parse a site entry. Entries are stored exactly as the app normalised them
+/// (lower-case domain, or address/prefix), so anything else is refused.
+pub fn parse_split_site(s: &str) -> Result<SplitSite, String> {
+    let (addr, prefix) = match s.split_once('/') {
+        Some((a, p)) => (a, Some(p)),
+        None => (s, None),
+    };
+    if let Ok(ip) = addr.parse::<IpAddr>() {
+        let max = if ip.is_ipv4() { 32 } else { 128 };
+        let bits = match prefix {
+            None => max,
+            Some(p) => p.parse::<u8>().ok().filter(|b| *b <= max && p == b.to_string()).ok_or_else(|| format!("\u{201c}{s}\u{201d} has an invalid range"))?,
+        };
+        return Ok(SplitSite::Cidr(format!("{ip}/{bits}")));
+    }
+    let ok_label = |l: &str| !l.is_empty() && l.len() <= 63 && !l.starts_with('-') && !l.ends_with('-') && l.bytes().all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'-');
+    if prefix.is_none() && s.len() <= 253 && s.contains('.') && s.split('.').all(ok_label) {
+        return Ok(SplitSite::Domain(s.to_string()));
+    }
+    Err(format!("\u{201c}{s}\u{201d} isn't a site name or IP address"))
+}
+
+/// A program file name such as `discord.exe` (no folders).
+pub fn check_split_app(a: &str) -> R {
+    let bad = |c: char| c.is_control() || matches!(c, '\\' | '/' | ':' | '*' | '?' | '"' | '<' | '>' | '|');
+    if a.len() < 5 || a.chars().count() > 100 || a.chars().any(bad) || a.starts_with(' ') || a.ends_with(' ') || !a.to_ascii_lowercase().ends_with(".exe") {
+        return Err(err("split", format!("\u{201c}{a}\u{201d} isn't a program name like discord.exe")));
+    }
+    Ok(())
+}
+
+pub fn validate_split(s: &SplitTunnel) -> R {
+    if s.apps.len() > SPLIT_MAX_APPS {
+        return Err(err("split", format!("Split tunnelling can list up to {SPLIT_MAX_APPS} apps")));
+    }
+    if s.sites.len() > SPLIT_MAX_SITES {
+        return Err(err("split", format!("Split tunnelling can list up to {SPLIT_MAX_SITES} sites")));
+    }
+    for a in &s.apps {
+        check_split_app(a)?;
+    }
+    for x in &s.sites {
+        parse_split_site(x).map_err(|m| err("split", m))?;
+    }
     Ok(())
 }

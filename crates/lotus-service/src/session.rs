@@ -59,6 +59,42 @@ fn median(v: &mut [u32]) -> Option<u32> {
 }
 
 #[cfg(test)]
+mod meter_tests {
+    use super::TunnelMeter;
+
+    fn c(id: &str, tunnel: bool, up: u64, down: u64) -> (String, bool, u64, u64) {
+        (id.into(), tunnel, up, down)
+    }
+
+    #[test]
+    fn counts_only_tunnel_connections() {
+        let mut m = TunnelMeter::new(1.0);
+        // First sample: a tunnelled and a direct connection.
+        assert_eq!(m.step(&[c("a", true, 100, 1000), c("b", false, 50, 500)], (150, 1500)), (100, 1000));
+        // Both grow; only the tunnel's growth counts.
+        assert_eq!(m.step(&[c("a", true, 300, 4000), c("b", false, 80, 9000)], (380, 13000)), (200, 3000));
+    }
+
+    #[test]
+    fn closed_connections_are_shared_by_the_observed_split() {
+        let mut m = TunnelMeter::new(1.0);
+        m.step(&[c("a", true, 0, 0)], (0, 0));
+        // Observed: 300 down tunnelled, 100 direct (75%). Another 400 down came
+        // from connections that opened and closed between samples.
+        let (_, down) = m.step(&[c("a", true, 0, 300), c("b", false, 0, 100)], (0, 800));
+        assert_eq!(down, 300 + 300);
+    }
+
+    #[test]
+    fn engine_restart_never_goes_negative() {
+        let mut m = TunnelMeter::new(0.0);
+        m.step(&[c("a", true, 500, 500)], (500, 500));
+        // New engine: totals restart from zero.
+        assert_eq!(m.step(&[c("z", true, 10, 20)], (10, 20)), (10, 20));
+    }
+}
+
+#[cfg(test)]
 mod tests {
     use super::median;
 
@@ -69,6 +105,108 @@ mod tests {
         assert_eq!(median(&mut [9]), Some(9));
         assert_eq!(median(&mut []), None);
     }
+}
+
+/// Counts the bytes that took the tunnel when some traffic deliberately
+/// doesn't (split tunnelling, DNS only). The engine reports per-connection
+/// counters for open connections plus a global total; bytes of connections
+/// that opened and closed between two samples show up only in the total, and
+/// are split between tunnel and direct in the proportion just observed.
+#[derive(Debug)]
+pub struct TunnelMeter {
+    seen: std::collections::HashMap<String, (u64, u64)>,
+    total: Option<(u64, u64)>,
+    share: (f64, f64),
+}
+
+/// One open connection: id, whether it uses the tunnel, bytes up, bytes down.
+pub type ConnSample = (String, bool, u64, u64);
+
+impl TunnelMeter {
+    /// `tunnel_share` is the guess for bytes seen before any connection has
+    /// been observed: most traffic tunnelled (bypass list) or not (only list).
+    pub fn new(tunnel_share: f64) -> Self {
+        Self { seen: Default::default(), total: None, share: (tunnel_share, tunnel_share) }
+    }
+
+    /// Bytes (up, down) secured since the previous sample.
+    pub fn step(&mut self, conns: &[ConnSample], total: (u64, u64)) -> (u64, u64) {
+        let (mut tun, mut all) = ((0u64, 0u64), (0u64, 0u64));
+        let mut next = std::collections::HashMap::with_capacity(conns.len());
+        for (id, tunnel, up, down) in conns {
+            let (pu, pd) = self.seen.get(id).copied().unwrap_or((0, 0));
+            let (du, dd) = (up.saturating_sub(pu), down.saturating_sub(pd));
+            all = (all.0 + du, all.1 + dd);
+            if *tunnel {
+                tun = (tun.0 + du, tun.1 + dd);
+            }
+            next.insert(id.clone(), (*up, *down));
+        }
+        self.seen = next;
+        let global = match self.total.replace(total) {
+            Some(p) => (total.0.saturating_sub(p.0), total.1.saturating_sub(p.1)),
+            None => all,
+        };
+        if all.0 > 0 {
+            self.share.0 = tun.0 as f64 / all.0 as f64;
+        }
+        if all.1 > 0 {
+            self.share.1 = tun.1 as f64 / all.1 as f64;
+        }
+        let unseen = (global.0.saturating_sub(all.0), global.1.saturating_sub(all.1));
+        (tun.0 + (unseen.0 as f64 * self.share.0).round() as u64, tun.1 + (unseen.1 as f64 * self.share.1).round() as u64)
+    }
+}
+
+fn conn_samples(v: &serde_json::Value) -> (Vec<ConnSample>, (u64, u64)) {
+    let num = |v: &serde_json::Value| v.as_u64().or_else(|| v.as_str().and_then(|s| s.parse().ok())).unwrap_or(0);
+    let conns = v["connections"]
+        .as_array()
+        .map(|a| {
+            a.iter()
+                .map(|c| {
+                    let tunnel = c["chains"].as_array().is_some_and(|ch| ch.iter().any(|x| x == singbox::PROXY_TAG));
+                    (c["id"].as_str().unwrap_or_default().to_string(), tunnel, num(&c["upload"]), num(&c["download"]))
+                })
+                .collect()
+        })
+        .unwrap_or_default();
+    (conns, (num(&v["uploadTotal"]), num(&v["downloadTotal"])))
+}
+
+fn spawn_tunnel_traffic(inner: &Arc<Inner>, clash: engine::Clash, opts: &ShadowOptions) -> tokio::task::JoinHandle<()> {
+    let inner = inner.clone();
+    let share = if opts.encrypt == EncryptScope::Dns || opts.split.mode == SplitMode::Only { 0.0 } else { 1.0 };
+    tokio::spawn(async move {
+        let mut meter = TunnelMeter::new(share);
+        // Four samples a second: a transfer has to open and close inside
+        // 250 ms to be missed, and then only its share is estimated.
+        let mut tick = tokio::time::interval(Duration::from_millis(250));
+        tick.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
+        let mut last = std::time::Instant::now();
+        let (mut up, mut down) = (0u64, 0u64);
+        loop {
+            tick.tick().await;
+            let Ok(v) = clash.connections().await else { continue };
+            let (conns, total) = conn_samples(&v);
+            let (u, d) = meter.step(&conns, total);
+            up += u;
+            down += d;
+            // Publish once a second, like the plain counter.
+            let secs = last.elapsed().as_secs_f64();
+            if secs < 0.95 {
+                continue;
+            }
+            last = std::time::Instant::now();
+            let (u, d) = (std::mem::take(&mut up), std::mem::take(&mut down));
+            inner.update(|s| {
+                s.traffic.up_rate = (u as f64 / secs) as u64;
+                s.traffic.down_rate = (d as f64 / secs) as u64;
+                s.traffic.up_total += u;
+                s.traffic.down_total += d;
+            });
+        }
+    })
 }
 
 /// Feed the engine's per-second byte counters into the published status.
@@ -146,7 +284,7 @@ fn finish(inner: &Inner, mode: Mode, res: Result<(), ErrorInfo>, keep: &AtomicBo
 
 async fn start_lotus_engine(inner: &Inner, opts: &LotusOptions, with_v6: bool) -> Result<Engine, ErrorInfo> {
     let (port, secret) = engine::new_controller_endpoint().map_err(|e| fail("internal", e.to_string()))?;
-    let ctx = EngineContext { clash_port: port, clash_secret: secret.clone(), tracker_ruleset: inner.paths.tracker_rules_str() };
+    let ctx = EngineContext { clash_port: port, clash_secret: secret.clone(), tracker_ruleset: inner.paths.tracker_rules_str(), dns_relay_port: None };
     let network = providers::lotus_resolver(opts).map(|r| singbox::resolver_network(r.transport)).unwrap_or("tcp");
     let listen = LotusListen { v6: with_v6.then(|| "::1".to_string()), relay_port: free_loopback_port(network), ..Default::default() };
     let cfg = singbox::lotus_config(opts, &ctx, &listen).map_err(|e| fail("invalid_options", e))?;
@@ -334,6 +472,7 @@ fn spawn_origin_refresh(inner: Arc<Inner>, publish_as_exit: bool) {
 
 pub async fn run_shadow(inner: Arc<Inner>, profile: ServerProfile, opts: ShadowOptions, cancel: CancellationToken, keep: Arc<AtomicBool>, resumed: bool) {
     inner.set_connecting(Mode::Shadow, Some(&profile), false);
+    *inner.shadow_opts.lock().unwrap() = Some(opts.clone());
     let res = shadow_session(&inner, &profile, &opts, &cancel, resumed).await;
     inner.cleanup_system();
     finish(&inner, Mode::Shadow, res, &keep);
@@ -353,17 +492,41 @@ impl Live {
     }
 }
 
+/// "2 apps and 3 sites", "1 app", ...
+pub fn split_summary(s: &SplitTunnel) -> String {
+    let n = |k: usize, one: &str, many: &str| format!("{k} {}", if k == 1 { one } else { many });
+    match (s.apps.len(), s.sites.len()) {
+        (a, 0) => n(a, "app", "apps"),
+        (0, x) => n(x, "site", "sites"),
+        (a, x) => format!("{} and {}", n(a, "app", "apps"), n(x, "site", "sites")),
+    }
+}
+
 fn shadow_protections(profile: &ServerProfile, opts: &ShadowOptions, inner: &Inner, ipv6: bool) -> Vec<Protection> {
     let dns = providers::resolver_for(opts.dns_provider, DnsTransport::Doh, false).map(|r| r.name).unwrap_or_default();
-    let routing = match (ipv6, opts.ipv6) {
+    let base = match (ipv6, opts.ipv6) {
         (true, _) => "All TCP and UDP traffic, IPv4 and IPv6",
         (false, Ipv6Mode::Tunnel) => "All TCP and UDP traffic; IPv6 blocked (your server has no IPv6)",
         (false, Ipv6Mode::Disable) => "All TCP and UDP traffic, IPv6 blocked",
     };
+    let (label, routing) = if opts.encrypt == EncryptScope::Dns {
+        ("DNS-only routing", "Only DNS lookups use the tunnel; other traffic uses your normal connection".to_string())
+    } else if opts.split_in_effect() && opts.split.mode == SplitMode::Only {
+        ("Split tunnel", format!("Only {} use the tunnel", split_summary(&opts.split)))
+    } else if opts.split_in_effect() {
+        ("Split tunnel", format!("{base}, except {} that skip the tunnel", split_summary(&opts.split)))
+    } else {
+        ("Full-device routing", base.to_string())
+    };
+    let dns_row = if opts.encrypt == EncryptScope::Traffic {
+        Protection::new("dns", "Encrypted DNS", format!("{dns} DNS-over-HTTPS, straight from this PC"), true)
+    } else {
+        Protection::new("dns", "DNS through tunnel", format!("{dns} DNS-over-HTTPS via your server"), true)
+    };
     vec![
         Protection::new("tunnel", "Encrypted tunnel", profile.protocol.label(), true),
-        Protection::new("routing", "Full-device routing", routing, true),
-        Protection::new("dns", "DNS through tunnel", format!("{dns} DNS-over-HTTPS via your server"), true),
+        Protection::new("routing", label, routing, true),
+        dns_row,
         Protection::new("kill_switch", "Kill switch", if opts.kill_switch { "Blocks traffic if the tunnel drops" } else { "Off" }, opts.kill_switch && inner.kill_switch_active()),
         Protection::new("trackers", "Tracker blocking", if opts.block_trackers { "Known ad & tracking domains" } else { "Off" }, opts.block_trackers),
     ]
@@ -375,7 +538,8 @@ async fn start_tunnel(inner: &Arc<Inner>, profile: &ServerProfile, opts: &Shadow
     let mut eff = opts.clone();
     eff.ipv6 = if ipv6 { Ipv6Mode::Tunnel } else { Ipv6Mode::Disable };
     let (port, secret) = engine::new_controller_endpoint().map_err(|e| fail("internal", e.to_string()))?;
-    let ctx = EngineContext { clash_port: port, clash_secret: secret.clone(), tracker_ruleset: inner.paths.tracker_rules_str() };
+    let relay = if opts.encrypt == EncryptScope::Dns { free_loopback_port("tcp") } else { None };
+    let ctx = EngineContext { clash_port: port, clash_secret: secret.clone(), tracker_ruleset: inner.paths.tracker_rules_str(), dns_relay_port: relay };
     let cfg = singbox::shadow_config(profile, &eff, &ctx).map_err(|e| fail("invalid_profile", e))?;
     let mut eng = inner.spawn_engine(&cfg, port, secret, Some(profile)).await?;
     if let Err(e) = eng.wait_ready(Duration::from_secs(12)).await {
@@ -459,7 +623,9 @@ async fn connect_once(inner: &Arc<Inner>, profile: &ServerProfile, opts: &Shadow
             });
         });
     }
-    let traffic = spawn_traffic(inner, eng.clash.clone());
+    // With some traffic deliberately outside the tunnel, the engine's totals
+    // include it; count only what took the tunnel.
+    let traffic = if opts.partial() { spawn_tunnel_traffic(inner, eng.clash.clone(), opts) } else { spawn_traffic(inner, eng.clash.clone()) };
     *inner.clash.lock().unwrap() = Some(eng.clash.clone());
     Ok(Live { engine: eng, traffic, ipv6 })
 }

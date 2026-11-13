@@ -118,7 +118,24 @@ pub async fn run(ctrl: &Controller) -> DiagnosticsReport {
     // --- IPv4 / IPv6 exit ------------------------------------------------------
     let v4 = probe::trace(probe::TRACE_V4, Duration::from_secs(6)).await;
     let v6 = probe::trace(probe::TRACE_V6, Duration::from_secs(5)).await;
+    // LOTUS's probes always take the tunnel, so with DNS only or a split
+    // tunnel they show the server's address; say who actually sees what.
+    let opts = if mode == Some(Mode::Shadow) { inner.shadow_opts.lock().unwrap().clone() } else { None };
+    let dns_only = opts.as_ref().is_some_and(|o| o.encrypt == EncryptScope::Dns);
+    let split = opts.as_ref().filter(|o| o.split_in_effect()).map(|o| (o.split.mode, crate::session::split_summary(&o.split)));
     match (mode, &v4) {
+        (Some(Mode::Shadow), _) if dns_only => checks.push(check(
+            "ipv4",
+            "Public IPv4",
+            CheckOutcome::Info,
+            format!("{} — unchanged (DNS only)", origin.ipv4.clone().unwrap_or_else(|| "Your own address".into())),
+            format!("SHADOW is set to send only DNS lookups through your server, so websites see your normal address. The tunnel itself works{}.", v4.as_ref().map(|t| format!(" (it exits at {})", t.ip)).unwrap_or_default()),
+        )),
+        (Some(Mode::Shadow), Ok(t)) if split.is_some() => {
+            let (m, what) = split.clone().unwrap();
+            let rest = if m == SplitMode::Only { format!("Only {what} use it; everything else uses your own address.") } else { format!("The {what} you excluded use your own address.") };
+            checks.push(check("ipv4", "IPv4 exit", CheckOutcome::Pass, format!("Tunnelled traffic exits at {}{}", t.ip, t.loc.as_ref().map(|l| format!(" ({l})")).unwrap_or_default()), rest));
+        }
         (Some(Mode::Shadow), Ok(t)) => {
             let local = st.profile_id.is_some() && origin.ipv4.as_deref() == Some(t.ip.as_str());
             if local {
@@ -134,6 +151,7 @@ pub async fn run(ctrl: &Controller) -> DiagnosticsReport {
     // A server on this machine/LAN exits with our own addresses by definition.
     let local_exit = matches!((&v4, &origin.ipv4), (Ok(t), Some(o)) if &t.ip == o);
     match (mode, &v6) {
+        (Some(Mode::Shadow), _) if dns_only => checks.push(check("ipv6", "Public IPv6", CheckOutcome::Info, origin.ipv6.clone().unwrap_or_else(|| "No IPv6".into()), "Unchanged: only DNS goes through your server.")),
         (Some(Mode::Shadow), Ok(t)) if origin.ipv6.as_deref() == Some(t.ip.as_str()) && local_exit => checks.push(check(
             "ipv6",
             "IPv6 exit",

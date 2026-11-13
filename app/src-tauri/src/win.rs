@@ -68,3 +68,54 @@ pub fn repair_service() -> Result<()> {
     }
     Ok(())
 }
+
+/// Program file names of apps with a visible window, for the split-tunnel
+/// picker (sorted, without duplicates, LOTUS itself or shell components).
+pub fn running_apps() -> Vec<String> {
+    use std::collections::BTreeMap;
+    use windows_sys::Win32::Foundation::{CloseHandle, BOOL, HWND, LPARAM};
+    use windows_sys::Win32::System::Threading::{OpenProcess, QueryFullProcessImageNameW, PROCESS_NAME_WIN32, PROCESS_QUERY_LIMITED_INFORMATION};
+    use windows_sys::Win32::UI::WindowsAndMessaging::{EnumWindows, GetWindowTextLengthW, GetWindowThreadProcessId, IsWindowVisible};
+
+    unsafe extern "system" fn each(hwnd: HWND, lparam: LPARAM) -> BOOL {
+        let pids = &mut *(lparam as *mut Vec<u32>);
+        if IsWindowVisible(hwnd) != 0 && GetWindowTextLengthW(hwnd) > 0 {
+            let mut pid = 0u32;
+            GetWindowThreadProcessId(hwnd, &mut pid);
+            if pid != 0 {
+                pids.push(pid);
+            }
+        }
+        1
+    }
+    const SHELL: &[&str] = &["explorer.exe", "applicationframehost.exe", "textinputhost.exe", "shellexperiencehost.exe", "searchhost.exe", "startmenuexperiencehost.exe", "systemsettings.exe", "lockapp.exe"];
+    let mut pids: Vec<u32> = Vec::new();
+    unsafe { EnumWindows(Some(each), &mut pids as *mut _ as LPARAM) };
+    pids.sort_unstable();
+    pids.dedup();
+    let me = std::process::id();
+    // Keyed by lower case so "Discord.exe" and "discord.exe" appear once.
+    let mut names = BTreeMap::new();
+    for pid in pids.into_iter().filter(|p| *p != me) {
+        unsafe {
+            let h = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, 0, pid);
+            if h.is_null() {
+                continue;
+            }
+            let mut buf = [0u16; 1024];
+            let mut len = buf.len() as u32;
+            let ok = QueryFullProcessImageNameW(h, PROCESS_NAME_WIN32, buf.as_mut_ptr(), &mut len) != 0;
+            CloseHandle(h);
+            if ok {
+                let path = String::from_utf16_lossy(&buf[..len as usize]);
+                if let Some(name) = path.rsplit('\\').next().filter(|n| !n.is_empty()) {
+                    let key = name.to_ascii_lowercase();
+                    if !SHELL.contains(&key.as_str()) && key != "lotus.exe" {
+                        names.entry(key).or_insert_with(|| name.to_string());
+                    }
+                }
+            }
+        }
+    }
+    names.into_values().collect()
+}

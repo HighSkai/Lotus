@@ -62,6 +62,8 @@ pub struct Inner {
     /// Local usage history, and whether the current session adds to it.
     pub usage: Mutex<crate::usage::UsageStore>,
     pub usage_on: AtomicBool,
+    /// Options of the SHADOW session in progress (for the privacy check).
+    pub shadow_opts: Mutex<Option<ShadowOptions>>,
 }
 
 #[derive(Clone)]
@@ -96,6 +98,7 @@ impl Controller {
             clash: Mutex::new(None),
             usage: Mutex::new(crate::usage::UsageStore::load(usage_file)),
             usage_on: AtomicBool::new(true),
+            shadow_opts: Mutex::new(None),
         })))
     }
 
@@ -237,7 +240,7 @@ impl Controller {
             result.tcp_ms = crate::probe::tcp_ping(profile.server(), profile.port(), Duration::from_secs(4)).await.ok();
         }
         let (port, secret) = engine::new_controller_endpoint().map_err(|e| fail("internal", e.to_string()))?;
-        let ctx = singbox::EngineContext { clash_port: port, clash_secret: secret.clone(), tracker_ruleset: None };
+        let ctx = singbox::EngineContext { clash_port: port, clash_secret: secret.clone(), tracker_ruleset: None, dns_relay_port: None };
         let cfg = singbox::probe_config(&profile, &ctx).map_err(|e| fail("invalid_profile", e))?;
         let mut eng = self.0.spawn_engine(&cfg, port, secret, Some(&profile)).await?;
         if let Err(e) = eng.wait_ready(Duration::from_secs(8)).await {

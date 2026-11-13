@@ -71,6 +71,19 @@ export interface ShadowOptions {
   quic: "auto" | "block" | "allow";
   mtu?: number;
   record_usage: boolean;
+  /** What goes through the server: everything, traffic only, or DNS only. */
+  encrypt: "all" | "traffic" | "dns";
+  split: SplitTunnel;
+}
+
+export type SplitMode = "off" | "bypass" | "only";
+
+export interface SplitTunnel {
+  mode: SplitMode;
+  /** Program file names, e.g. "Discord.exe". */
+  apps: string[];
+  /** Lower-case domains (subdomains included), IP addresses or CIDR ranges. */
+  sites: string[];
 }
 
 export interface AppSettings {

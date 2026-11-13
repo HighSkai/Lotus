@@ -433,6 +433,48 @@ pub enum QuicPolicy {
     Allow,
 }
 
+/// What SHADOW sends through the exit server. DNS is encrypted in every case;
+/// the choice is whether it (and the rest of the traffic) takes the tunnel.
+#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum EncryptScope {
+    /// All traffic and all DNS go through the server.
+    #[default]
+    All,
+    /// Traffic goes through the server; DNS goes straight to the encrypted
+    /// resolver (faster lookups, the resolver sees your own IP).
+    Traffic,
+    /// Only DNS goes through the server; traffic uses the normal connection.
+    Dns,
+}
+
+#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum SplitMode {
+    #[default]
+    Off,
+    /// Listed apps and sites skip the tunnel.
+    Bypass,
+    /// Only listed apps and sites use the tunnel.
+    Only,
+}
+
+/// Split tunnelling. Apps are program file names (`discord.exe`); sites are
+/// domains (matching subdomains too), IP addresses or CIDR ranges.
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+#[serde(default)]
+pub struct SplitTunnel {
+    pub mode: SplitMode,
+    pub apps: Vec<String>,
+    pub sites: Vec<String>,
+}
+
+impl SplitTunnel {
+    pub fn active(&self) -> bool {
+        self.mode != SplitMode::Off && !(self.apps.is_empty() && self.sites.is_empty())
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(default)]
 pub struct ShadowOptions {
@@ -450,6 +492,20 @@ pub struct ShadowOptions {
     pub mtu: Option<u16>,
     /// Add this session's time and traffic to the local usage history.
     pub record_usage: bool,
+    pub encrypt: EncryptScope,
+    pub split: SplitTunnel,
+}
+
+impl ShadowOptions {
+    /// Split tunnelling only applies while traffic takes the tunnel.
+    pub fn split_in_effect(&self) -> bool {
+        self.encrypt != EncryptScope::Dns && self.split.active()
+    }
+
+    /// Some traffic deliberately uses the normal connection.
+    pub fn partial(&self) -> bool {
+        self.encrypt == EncryptScope::Dns || self.split_in_effect()
+    }
 }
 
 impl Default for ShadowOptions {
@@ -465,6 +521,8 @@ impl Default for ShadowOptions {
             quic: QuicPolicy::Auto,
             mtu: None,
             record_usage: true,
+            encrypt: EncryptScope::All,
+            split: SplitTunnel::default(),
         }
     }
 }

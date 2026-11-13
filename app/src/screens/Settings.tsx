@@ -1,13 +1,15 @@
 import { useEffect, useState } from "react";
-import { ArrowDownToLine, ChartColumn, Copy, Cpu, Gauge, Info, Lock, RefreshCw, Server, Shield, ShieldCheck, SlidersHorizontal, Wrench, Zap } from "lucide-react";
-import { Advanced, Hint, IconButton, List, NavRow, Page, Pill, RadioList, Seg, SettingRow, ToggleRow } from "@/components/Controls";
+import { ArrowDownToLine, ChartColumn, Copy, Cpu, Gauge, Info, Lock, Plus, RefreshCw, Server, Shield, ShieldCheck, SlidersHorizontal, Split, Wrench, X, Zap } from "lucide-react";
+import { Advanced, Hint, IconButton, List, NavRow, Notice, Page, Pill, RadioList, Seg, SectionTitle, SettingRow, ToggleRow } from "@/components/Controls";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { api, errorText } from "@/lib/api";
+import { normalizeApp, normalizeSite, splitLabel } from "@/lib/format";
 import { toast, updateSettings, useStore } from "@/lib/store";
-import type { AppSettings, DnsProviderId, DnsTransport } from "@/lib/types";
+import { cn } from "@/lib/utils";
+import type { AppSettings, DnsProviderId, DnsTransport, ShadowOptions, SplitMode, SplitTunnel } from "@/lib/types";
 import type { Nav } from "../App";
 import { updateLabel } from "./Updates";
 
@@ -18,6 +20,12 @@ async function save(fn: (s: AppSettings) => AppSettings) {
     toast(errorText(e), "error");
   }
 }
+
+const ENCRYPT = {
+  all: { label: "Traffic and DNS", sub: () => "Everything goes through your server" },
+  traffic: { label: "Traffic only", sub: (r: string) => `Lookups go straight to ${r}, still encrypted. Faster, but ${r} sees your IP` },
+  dns: { label: "DNS only", sub: () => "Only lookups go through your server. Websites see your IP" },
+} as const;
 
 /** Changes apply to a live session at once; say so while it reconnects. */
 function useReconnectHint(scope: "lotus" | "shadow") {
@@ -37,7 +45,8 @@ export function SettingsIndex({ nav }: { nav: Nav }) {
       <List>
         <NavRow icon={SlidersHorizontal} label="General" onClick={() => nav.push({ name: "general" })} />
         <NavRow icon={Lock} label="DNS & Privacy" value={pname} onClick={() => nav.push({ name: "dns" })} />
-        <NavRow icon={Zap} label="Connection" onClick={() => nav.push({ name: "connection" })} />
+        <NavRow icon={Zap} label="Connection" value={settings.shadow.encrypt === "all" ? undefined : ENCRYPT[settings.shadow.encrypt].label} onClick={() => nav.push({ name: "connection" })} />
+        <NavRow icon={Split} label="Split tunnelling" value={splitLabel(settings.shadow.split)} onClick={() => nav.push({ name: "split" })} />
         <NavRow icon={Shield} label="Kill switch" value={settings.shadow.kill_switch ? "On" : "Off"} onClick={() => nav.push({ name: "killswitch" })} />
         <NavRow icon={Server} label="Servers" value={profiles.length || undefined} onClick={() => nav.push({ name: "servers" })} />
         <NavRow icon={ChartColumn} label="Usage" onClick={() => nav.push({ name: "usage" })} />
@@ -182,8 +191,20 @@ export function ConnectionSettings({ nav }: { nav: Nav }) {
   const providers = useStore((st) => st.providers);
   const hint = useReconnectHint("shadow");
   const [mtu, setMtu] = useState(s.shadow.mtu ? String(s.shadow.mtu) : "");
+  const resolver = providers.find((p) => p.id === s.shadow.dns_provider)?.name ?? "your resolver";
   return (
     <Page title="Connection" onBack={nav.back}>
+      <List title="Send through your server">
+        <RadioList<ShadowOptions["encrypt"]>
+          label="Send through your server"
+          value={s.shadow.encrypt}
+          onChange={(v) => save((x) => ({ ...x, shadow: { ...x.shadow, encrypt: v } }))}
+          options={(["all", "traffic", "dns"] as const).map((v) => ({ value: v, label: ENCRYPT[v].label, sub: ENCRYPT[v].sub(resolver) }))}
+        />
+      </List>
+      <List>
+        <NavRow label="Split tunnelling" value={splitLabel(s.shadow.split)} onClick={() => nav.push({ name: "split" })} />
+      </List>
       <List>
         <ToggleRow label="Reconnect automatically" checked={s.shadow.auto_reconnect} onChange={(v) => save((x) => ({ ...x, shadow: { ...x.shadow, auto_reconnect: v } }))} />
         <ToggleRow label="Block trackers & ads" checked={s.shadow.block_trackers} onChange={(v) => save((x) => ({ ...x, shadow: { ...x.shadow, block_trackers: v } }))} />
@@ -199,7 +220,7 @@ export function ConnectionSettings({ nav }: { nav: Nav }) {
           />
         </SettingRow>
       </List>
-      <List title="DNS inside the tunnel">
+      <List title={s.shadow.encrypt === "traffic" ? "DNS resolver" : "DNS inside the tunnel"}>
         <RadioList<DnsProviderId>
           label="Tunnel DNS"
           value={s.shadow.dns_provider}
@@ -250,6 +271,142 @@ export function KillSwitchSettings({ nav }: { nav: Nav }) {
         <ToggleRow label="Kill switch" sub="Blocks the internet if SHADOW drops, instead of leaking" checked={s.shadow.kill_switch} onChange={(v) => save((x) => ({ ...x, shadow: { ...x.shadow, kill_switch: v } }))} />
         <ToggleRow label="Allow local network" sub="Printers, shares and your router" checked={s.shadow.allow_lan} onChange={(v) => save((x) => ({ ...x, shadow: { ...x.shadow, allow_lan: v } }))} />
       </List>
+      {hint}
+    </Page>
+  );
+}
+
+const SPLIT_HINT: Record<SplitMode, string> = {
+  off: "All traffic follows your Connection settings.",
+  bypass: "Listed apps and sites use your normal connection. Everything else uses the tunnel.",
+  only: "Only listed apps and sites use the tunnel. Everything else uses your normal connection.",
+};
+
+/** A list of entries with remove buttons, an add field and optional quick-add suggestions. */
+function EntryList({
+  title,
+  items,
+  placeholder,
+  normalize,
+  invalid,
+  hint,
+  suggestions = [],
+  onChange,
+}: {
+  title: string;
+  items: string[];
+  placeholder: string;
+  normalize: (s: string) => string | null;
+  invalid: string;
+  hint?: string;
+  suggestions?: string[];
+  onChange: (items: string[]) => void;
+}) {
+  const [text, setText] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const add = (raw: string) => {
+    const v = normalize(raw);
+    if (!v) return setError(invalid);
+    setError(null);
+    setText("");
+    if (!items.some((i) => i.toLowerCase() === v.toLowerCase())) onChange([...items, v]);
+  };
+  const fresh = suggestions.filter((s) => !items.some((i) => i.toLowerCase() === s.toLowerCase())).slice(0, 10);
+  return (
+    <section className="flex flex-col">
+      <SectionTitle>{title}</SectionTitle>
+      <Card className="p-1">
+        {items.map((i) => (
+          <SettingRow key={i} label={i}>
+            <IconButton label={`Remove ${i}`} onClick={() => onChange(items.filter((x) => x !== i))}>
+              <X className="size-4" />
+            </IconButton>
+          </SettingRow>
+        ))}
+        <form
+          className={cn("flex items-center gap-2 p-1.5", items.length > 0 && "relative before:absolute before:top-0 before:right-3 before:left-3 before:h-px before:bg-border")}
+          onSubmit={(e) => {
+            e.preventDefault();
+            add(text);
+          }}
+        >
+          <Input
+            className="h-8 flex-1"
+            placeholder={placeholder}
+            value={text}
+            aria-label={`Add to ${title}`}
+            aria-invalid={!!error}
+            spellCheck={false}
+            onChange={(e) => {
+              setText(e.target.value);
+              setError(null);
+            }}
+          />
+          <Button type="submit" size="sm" variant="secondary" disabled={!text.trim()}>
+            <Plus /> Add
+          </Button>
+        </form>
+      </Card>
+      {error ? <p className="m-0 mt-2 px-3 text-[12px] text-destructive">{error}</p> : hint && <Hint className="mt-2">{hint}</Hint>}
+      {fresh.length > 0 && (
+        <div className="mt-2 flex flex-wrap items-center gap-1.5 px-2" aria-label="Apps open now">
+          <span className="pr-1 text-[12px] text-muted-foreground">Open now</span>
+          {fresh.map((s) => (
+            <button
+              key={s}
+              type="button"
+              onClick={() => add(s)}
+              className="inline-flex h-7 items-center gap-1 rounded-full bg-fill px-2.5 text-[12px] text-muted-foreground transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+            >
+              <Plus className="size-3" /> {s}
+            </button>
+          ))}
+        </div>
+      )}
+    </section>
+  );
+}
+
+export function SplitSettings({ nav }: { nav: Nav }) {
+  const s = useStore((st) => st.settings)!;
+  const hint = useReconnectHint("shadow");
+  const split = s.shadow.split;
+  const [running, setRunning] = useState<string[]>([]);
+  useEffect(() => {
+    api.runningApps().then(setRunning).catch(() => setRunning([]));
+  }, []);
+  const set = (fn: (x: SplitTunnel) => SplitTunnel) => save((x) => ({ ...x, shadow: { ...x.shadow, split: fn(x.shadow.split) } }));
+  return (
+    <Page title="Split tunnelling" onBack={nav.back}>
+      <List hint={SPLIT_HINT[split.mode]}>
+        <SettingRow label="Mode">
+          <Seg<SplitMode>
+            label="Split tunnelling"
+            value={split.mode}
+            onChange={(v) => set((x) => ({ ...x, mode: v }))}
+            options={[
+              { value: "off", label: "Off" },
+              { value: "bypass", label: "Exclude" },
+              { value: "only", label: "Only these" },
+            ]}
+          />
+        </SettingRow>
+      </List>
+      {s.shadow.encrypt === "dns" && (
+        <Notice icon={Info} tone="info">
+          Connection is set to DNS only, so no traffic uses the tunnel and these lists have no effect.
+        </Notice>
+      )}
+      <EntryList title="Apps" items={split.apps} placeholder="discord.exe" normalize={normalizeApp} invalid="Type a program name, like discord.exe." suggestions={running} onChange={(apps) => set((x) => ({ ...x, apps }))} />
+      <EntryList
+        title="Sites"
+        items={split.sites}
+        placeholder="netflix.com or 10.0.0.0/8"
+        normalize={normalizeSite}
+        invalid="Type a site like netflix.com, or an IP address or range."
+        hint="A site includes its subdomains."
+        onChange={(sites) => set((x) => ({ ...x, sites }))}
+      />
       {hint}
     </Page>
   );

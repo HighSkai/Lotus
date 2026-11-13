@@ -28,6 +28,8 @@ pub struct EngineContext {
     pub clash_secret: String,
     /// Absolute path of the bundled tracker rule-set (`.srs`).
     pub tracker_ruleset: Option<String>,
+    /// Loopback port for the SHADOW "DNS only" relay (see `shadow_config`).
+    pub dns_relay_port: Option<u16>,
 }
 
 #[derive(Debug, Clone)]
@@ -170,22 +172,21 @@ pub fn shadow_config(profile: &ServerProfile, opts: &ShadowOptions, ctx: &Engine
         tun["mtu"] = json!(mtu);
     }
 
+    let dns_only = opts.encrypt == EncryptScope::Dns;
+    let split = if opts.split_in_effect() { Some(SplitMatch::new(&opts.split)?) } else { None };
+    let only = split.is_some() && opts.split.mode == SplitMode::Only;
+
     let mut rules = vec![json!({"action": "sniff"}), json!({"protocol": "dns", "action": "hijack-dns"})];
+    // LOTUS's own checks (handshake, routing proof, latency) always take the
+    // tunnel, whatever the split settings send elsewhere.
+    let mut probes = vec!["1.1.1.1/32"];
+    if ipv6 {
+        probes.push("2606:4700:4700::1111/128");
+    }
+    rules.push(json!({"ip_cidr": probes, "network": "tcp", "port": 443, "outbound": PROXY_TAG}));
     if opts.allow_lan {
         rules.push(json!({"ip_is_private": true, "outbound": "direct"}));
     }
-    let block_quic = match opts.quic {
-        QuicPolicy::Block => true,
-        QuicPolicy::Allow => false,
-        QuicPolicy::Auto => !profile.protocol.is_udp_native(),
-    };
-    if block_quic {
-        rules.push(json!({"network": "udp", "port": 443, "action": "reject"}));
-    }
-    if !ipv6 {
-        rules.push(json!({"ip_version": 6, "action": "reject"}));
-    }
-
     let mut dns_rules = Vec::new();
     let mut rule_sets = Vec::new();
     if opts.block_trackers {
@@ -196,21 +197,93 @@ pub fn shadow_config(profile: &ServerProfile, opts: &ShadowOptions, ctx: &Engine
         }
     }
 
+    let block_quic = !dns_only
+        && match opts.quic {
+            QuicPolicy::Block => true,
+            QuicPolicy::Allow => false,
+            QuicPolicy::Auto => !profile.protocol.is_udp_native(),
+        };
+    // Limits that exist because of the tunnel (QUIC inside TCP, IPv6 the
+    // server can't carry) apply to tunnelled traffic only.
+    let mut tunnel_limits = Vec::new();
+    if block_quic {
+        tunnel_limits.push(json!({"network": "udp", "port": 443, "action": "reject"}));
+    }
+    if !ipv6 && !dns_only {
+        tunnel_limits.push(json!({"ip_version": 6, "action": "reject"}));
+    }
+    match &split {
+        Some(m) if only => {
+            for matcher in m.matchers() {
+                for limit in &tunnel_limits {
+                    rules.push(merge(&matcher, limit));
+                }
+                rules.push(merge(&matcher, &json!({"outbound": PROXY_TAG})));
+            }
+        }
+        Some(m) => {
+            for matcher in m.matchers() {
+                rules.push(merge(&matcher, &json!({"outbound": "direct"})));
+            }
+            rules.extend(tunnel_limits);
+        }
+        None if !dns_only => rules.extend(tunnel_limits),
+        None => {}
+    }
+    let route_final = if dns_only || only { "direct" } else { PROXY_TAG };
+
+    // DNS: through the server unless the user chose "traffic only"; sites
+    // that skip the tunnel resolve directly so they get nearby servers.
+    let direct = providers::resolver_for(opts.dns_provider, DnsTransport::Doh, false)?;
+    let mut remote_server = dns_server("dns-remote", &remote, Some(PROXY_TAG));
+    if let (true, Some(relay)) = (dns_only, ctx.dns_relay_port) {
+        // Only DNS takes the tunnel: send it via a loopback relay so its bytes
+        // pass the router and count as secured.
+        remote_server = dns_server("dns-remote", &remote, None);
+        remote_server["server"] = json!("127.0.0.1");
+        remote_server["server_port"] = json!(relay);
+        rules.insert(0, json!({"inbound": ["dns-relay"], "outbound": PROXY_TAG}));
+    }
+    let mut dns_servers = vec![remote_server, dns_server("dns-direct", &direct, None), bootstrap_server()];
+    if let Some(m) = split.as_ref().filter(|_| !only).and_then(|m| m.domain_rule()) {
+        dns_rules.push(merge(&m, &json!({"server": "dns-direct"})));
+    }
+    if let Some(m) = split.as_ref().filter(|_| only && opts.encrypt == EncryptScope::Traffic).and_then(|m| m.domain_rule()) {
+        dns_rules.push(merge(&m, &json!({"server": "dns-remote"})));
+    }
+    let dns_final = if opts.encrypt == EncryptScope::Traffic { "dns-direct" } else { "dns-remote" };
+    if dns_final != "dns-direct" && !dns_rules.iter().any(|r| r["server"] == "dns-direct") {
+        dns_servers.retain(|s| s["tag"] != "dns-direct");
+    }
+
+    let mut inbounds = vec![tun];
+    if let (true, Some(relay)) = (dns_only, ctx.dns_relay_port) {
+        inbounds.push(json!({
+            "type": "direct",
+            "tag": "dns-relay",
+            "listen": "127.0.0.1",
+            "listen_port": relay,
+            "network": "tcp",
+            "override_address": remote.ip,
+            "override_port": resolver_port(DnsTransport::Doh),
+        }));
+    }
+
     let (outbound, is_endpoint) = proxy_outbound(profile)?;
     let mut cfg = json!({
         "log": {"level": "warn", "timestamp": false},
         "dns": {
-            "servers": [dns_server("dns-remote", &remote, Some(PROXY_TAG)), bootstrap_server()],
+            "servers": dns_servers,
             "rules": dns_rules,
-            "final": "dns-remote",
-            "strategy": if ipv6 { "prefer_ipv4" } else { "ipv4_only" },
+            "final": dns_final,
+            "strategy": if ipv6 || dns_only { "prefer_ipv4" } else { "ipv4_only" },
             "cache_capacity": 4096,
         },
-        "inbounds": [tun],
+        "inbounds": inbounds,
         "outbounds": [{"type": "direct", "tag": "direct"}],
         "route": {
             "rules": rules,
-            "final": PROXY_TAG,
+            "final": route_final,
             "auto_detect_interface": true,
             "default_domain_resolver": "dns-bootstrap",
         },
@@ -219,8 +292,73 @@ pub fn shadow_config(profile: &ServerProfile, opts: &ShadowOptions, ctx: &Engine
     if !rule_sets.is_empty() {
         cfg["route"]["rule_set"] = Value::Array(rule_sets);
     }
+    if split.as_ref().is_some_and(|m| !m.domains.is_empty()) {
+        // Lets site rules match connections the sniffer can't name (plain
+        // UDP, games), using the answer the app was given.
+        cfg["dns"]["reverse_mapping"] = json!(true);
+    }
     attach_proxy(&mut cfg, outbound, is_endpoint);
     Ok(cfg)
+}
+
+/// Split-tunnel entries in the engine's terms.
+struct SplitMatch {
+    /// Case-insensitive match on the program's file name, in any folder.
+    apps: Vec<String>,
+    domains: Vec<String>,
+    cidrs: Vec<String>,
+}
+
+impl SplitMatch {
+    fn new(s: &SplitTunnel) -> Result<Self, String> {
+        crate::validate::validate_split(s).map_err(|e| e.to_string())?;
+        let mut m = SplitMatch { apps: Vec::new(), domains: Vec::new(), cidrs: Vec::new() };
+        for a in &s.apps {
+            let escaped: String = a.chars().flat_map(|c| if c.is_ascii_punctuation() { vec!['\\', c] } else { vec![c] }).collect();
+            m.apps.push(format!("(?i)(^|\\\\){escaped}$"));
+        }
+        for x in &s.sites {
+            match crate::validate::parse_split_site(x)? {
+                crate::validate::SplitSite::Domain(d) => m.domains.push(d),
+                crate::validate::SplitSite::Cidr(c) => m.cidrs.push(c),
+            }
+        }
+        Ok(m)
+    }
+
+    /// One rule body per kind: the engine ANDs different kinds within a rule,
+    /// so apps and sites need separate rules to mean "app OR site".
+    fn matchers(&self) -> Vec<Value> {
+        let mut out = Vec::new();
+        if !self.apps.is_empty() {
+            out.push(json!({"process_path_regex": self.apps}));
+        }
+        let mut site = Map::new();
+        if !self.domains.is_empty() {
+            site.insert("domain_suffix".into(), json!(self.domains));
+        }
+        if !self.cidrs.is_empty() {
+            site.insert("ip_cidr".into(), json!(self.cidrs));
+        }
+        if !site.is_empty() {
+            out.push(Value::Object(site));
+        }
+        out
+    }
+
+    fn domain_rule(&self) -> Option<Value> {
+        (!self.domains.is_empty()).then(|| json!({"domain_suffix": self.domains}))
+    }
+}
+
+fn merge(a: &Value, b: &Value) -> Value {
+    let mut m = a.as_object().cloned().unwrap_or_default();
+    if let Some(b) = b.as_object() {
+        for (k, v) in b {
+            m.insert(k.clone(), v.clone());
+        }
+    }
+    Value::Object(m)
 }
 
 /// A minimal configuration used to test a server without touching routing:

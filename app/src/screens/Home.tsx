@@ -7,7 +7,7 @@ import { SessionStats } from "@/components/SessionStats";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { api, errorText } from "@/lib/api";
-import { country, rate } from "@/lib/format";
+import { country, rate, routingLabel } from "@/lib/format";
 import { easeOut } from "@/lib/motion";
 import { toast, useStore } from "@/lib/store";
 import type { Mode, Status } from "@/lib/types";
@@ -71,6 +71,7 @@ export function Home({ nav }: { nav: Nav }) {
   const provider = settings.lotus.provider === "custom" ? null : providers.find((p) => p.id === settings.lotus.provider);
   const providerName = settings.lotus.provider === "custom" ? "Custom resolver" : provider?.name ?? "";
   const reduced = settings.motion === "reduce";
+  const routing = routingLabel(settings.shadow);
 
   async function toggle() {
     if (visual === "on" || visual === "connecting" || visual === "reconnecting") {
@@ -167,9 +168,12 @@ export function Home({ nav }: { nav: Nav }) {
           ) : (
             <Card className="p-1">
               <NavRow label="Server" value={selected?.name ?? "Add a server"} onClick={() => nav.push({ name: selected ? "servers" : "add-server" })} />
+              {routing && <NavRow label="Routing" value={routing} onClick={() => nav.push({ name: "connection" })} />}
               <SettingRow label="Exit IP">
                 <span className="truncate">
-                  {running && live?.exit?.ipv4 ? (
+                  {settings.shadow.encrypt === "dns" ? (
+                    "Your own (DNS only)"
+                  ) : running && live?.exit?.ipv4 ? (
                     <>
                       <span className="font-mono text-[12.5px] text-foreground tabular-nums">{live.exit.ipv4}</span>
                       {live.exit.country && ` · ${country(live.exit.country)}`}

@@ -27,7 +27,7 @@ let settings: AppSettings = {
   mode: "lotus",
   selected_profile: "p1",
   lotus: { provider: "cloudflare", transport: "doh", block_trackers: true, block_malware: false, block_plain_dns: false, resume_on_boot: true, record_usage: true },
-  shadow: { kill_switch: true, allow_lan: true, auto_reconnect: true, resume_on_boot: true, ipv6: "tunnel", dns_provider: "cloudflare", block_trackers: true, quic: "auto", record_usage: true },
+  shadow: { kill_switch: true, allow_lan: true, auto_reconnect: true, resume_on_boot: true, ipv6: "tunnel", dns_provider: "cloudflare", block_trackers: true, quic: "auto", record_usage: true, encrypt: "all", split: { mode: "off", apps: [], sites: [] } },
   launch_at_startup: true,
   connect_on_launch: false,
   close_to_tray: true,
@@ -281,6 +281,8 @@ export async function installMock() {
         }
         case "clear_usage":
           return null;
+        case "running_apps":
+          return ["chrome.exe", "Discord.exe", "Spotify.exe", "steam.exe", "Code.exe", "valorant.exe"];
         case "update_status":
           return update;
         case "check_update":

@@ -80,6 +80,7 @@ fn main() {
             commands::connections,
             commands::verify_server,
             commands::usage,
+            commands::running_apps,
             commands::clear_usage,
             commands::logs,
             commands::save_server_script,

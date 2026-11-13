@@ -24,6 +24,7 @@ export const api = {
   bootstrap: () => invoke<Bootstrap>("bootstrap"),
   appReady: () => invoke<void>("app_ready"),
   saveSettings: (settings: AppSettings) => invoke<AppSettings>("save_settings", { settings }),
+  runningApps: () => invoke<string[]>("running_apps"),
   setMode: (mode: Mode) => invoke<AppSettings>("set_mode", { mode }),
   connect: () => invoke<void>("connect"),
   disconnect: () => invoke<void>("disconnect"),

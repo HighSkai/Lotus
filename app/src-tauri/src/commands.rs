@@ -120,7 +120,9 @@ fn lotus_engine_opts(o: &LotusOptions) -> LotusOptions {
 }
 
 fn shadow_engine_opts(o: &ShadowOptions) -> ShadowOptions {
-    ShadowOptions { resume_on_boot: false, record_usage: true, ..o.clone() }
+    // A split list that isn't in effect (mode off, or DNS only) changes nothing.
+    let split = if o.split_in_effect() { o.split.clone() } else { SplitTunnel::default() };
+    ShadowOptions { resume_on_boot: false, record_usage: true, split, ..o.clone() }
 }
 
 /// Settings changed while their mode is on: reconnect with them now. If that
@@ -492,6 +494,15 @@ pub async fn connections(state: State<'_, AppState>) -> CmdResult<Value> {
 }
 
 /// Local usage history (totals per day, mode and server).
+/// Apps with a window open right now, offered when adding to the split tunnel.
+#[tauri::command]
+pub async fn running_apps() -> Vec<String> {
+    #[cfg(windows)]
+    return tauri::async_runtime::spawn_blocking(crate::win::running_apps).await.unwrap_or_default();
+    #[allow(unreachable_code)]
+    Vec::new()
+}
+
 #[tauri::command]
 pub async fn usage(state: State<'_, AppState>) -> CmdResult<Value> {
     state.svc.request(Command::Usage, Duration::from_secs(5)).await

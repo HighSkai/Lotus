@@ -25,6 +25,7 @@ fn ctx() -> EngineContext {
         clash_port: 39090,
         clash_secret: "test-secret".into(),
         tracker_ruleset: rs.exists().then(|| rs.canonicalize().unwrap().to_string_lossy().trim_start_matches(r"\\?\").to_string()),
+        dns_relay_port: Some(39092),
     }
 }
 
@@ -217,6 +218,106 @@ fn shadow_configs_pass_engine_check() {
         o.dns_provider = DnsProviderId::Quad9;
         check(&format!("{} (strict)", p.name), &shadow_config(&p, &o, &ctx).unwrap());
         check(&format!("{} (probe)", p.name), &probe_config(&p, &ctx).unwrap());
+    }
+}
+
+/// Index of the first route rule matching `pred`.
+fn rule_at(cfg: &serde_json::Value, pred: impl Fn(&serde_json::Value) -> bool) -> Option<usize> {
+    cfg["route"]["rules"].as_array().unwrap().iter().position(pred)
+}
+
+#[test]
+fn split_and_encrypt_rules_mean_what_the_settings_say() {
+    let ctx = ctx();
+    let p = profiles().into_iter().next().unwrap(); // VLESS over TCP: QUIC blocked on auto
+    let split = |mode| SplitTunnel { mode, apps: vec!["Discord.exe".into()], sites: vec!["netflix.com".into(), "203.0.113.7".into()] };
+    let quic = |r: &serde_json::Value| r["network"] == "udp" && r["port"] == 443 && r["action"] == "reject";
+
+    // Default: unchanged behaviour (everything tunnelled, DNS via the server).
+    let all = shadow_config(&p, &ShadowOptions::default(), &ctx).unwrap();
+    assert_eq!(all["route"]["final"], "proxy");
+    assert_eq!(all["dns"]["final"], "dns-remote");
+    assert!(all["dns"]["servers"].as_array().unwrap().iter().all(|s| s["tag"] != "dns-direct"));
+    assert!(all["dns"].get("reverse_mapping").is_none());
+
+    // Bypass: listed apps/sites go direct *before* the QUIC block, so their QUIC works.
+    let o = ShadowOptions { split: split(SplitMode::Bypass), ..Default::default() };
+    let c = shadow_config(&p, &o, &ctx).unwrap();
+    let app = rule_at(&c, |r| r["process_path_regex"][0] == "(?i)(^|\\\\)Discord\\.exe$" && r["outbound"] == "direct").expect("app bypass rule");
+    let site = rule_at(&c, |r| r["domain_suffix"][0] == "netflix.com" && r["ip_cidr"][0] == "203.0.113.7/32" && r["outbound"] == "direct").expect("site bypass rule");
+    let q = rule_at(&c, quic).expect("quic block");
+    assert!(app < q && site < q);
+    assert_eq!(c["route"]["final"], "proxy");
+    assert!(c["dns"]["rules"].as_array().unwrap().iter().any(|r| r["domain_suffix"][0] == "netflix.com" && r["server"] == "dns-direct"));
+    assert_eq!(c["dns"]["reverse_mapping"], true);
+
+    // Only: listed traffic tunnelled (with the QUIC block), everything else direct and untouched.
+    let o = ShadowOptions { split: split(SplitMode::Only), ..Default::default() };
+    let c = shadow_config(&p, &o, &ctx).unwrap();
+    assert_eq!(c["route"]["final"], "direct");
+    assert!(rule_at(&c, |r| r["process_path_regex"].is_array() && quic(r)).is_some());
+    assert!(rule_at(&c, |r| r["process_path_regex"].is_array() && r["outbound"] == "proxy").is_some());
+    assert!(rule_at(&c, |r| r.get("process_path_regex").is_none() && r.get("domain_suffix").is_none() && quic(r)).is_none(), "QUIC must not be blocked for traffic outside the tunnel");
+
+    // LOTUS's own probes always take the tunnel, ahead of any split rule.
+    let probe = rule_at(&c, |r| r["ip_cidr"][0] == "1.1.1.1/32" && r["outbound"] == "proxy").unwrap();
+    assert!(probe < rule_at(&c, |r| r["process_path_regex"].is_array()).unwrap());
+
+    // Traffic only: tunnel everything, resolve directly.
+    let o = ShadowOptions { encrypt: EncryptScope::Traffic, ..Default::default() };
+    let c = shadow_config(&p, &o, &ctx).unwrap();
+    assert_eq!((c["route"]["final"].as_str(), c["dns"]["final"].as_str()), (Some("proxy"), Some("dns-direct")));
+
+    // DNS only: traffic direct (no QUIC/IPv6 limits), DNS through a relay that the router counts, split ignored.
+    let o = ShadowOptions { encrypt: EncryptScope::Dns, ipv6: Ipv6Mode::Disable, split: split(SplitMode::Bypass), ..Default::default() };
+    let c = shadow_config(&p, &o, &ctx).unwrap();
+    assert_eq!((c["route"]["final"].as_str(), c["dns"]["final"].as_str()), (Some("direct"), Some("dns-remote")));
+    assert!(rule_at(&c, quic).is_none());
+    assert!(rule_at(&c, |r| r["ip_version"] == 6).is_none());
+    assert!(rule_at(&c, |r| r["process_path_regex"].is_array()).is_none());
+    assert_eq!(rule_at(&c, |r| r["inbound"][0] == "dns-relay" && r["outbound"] == "proxy"), Some(0));
+    let remote = c["dns"]["servers"].as_array().unwrap().iter().find(|s| s["tag"] == "dns-remote").unwrap();
+    assert_eq!((remote["server"].as_str(), remote["server_port"].as_u64()), (Some("127.0.0.1"), Some(39092)));
+}
+
+#[test]
+fn split_entries_are_validated() {
+    use lotus_core::validate::{parse_split_site, validate_split, SplitSite};
+    assert_eq!(parse_split_site("10.0.0.0/8"), Ok(SplitSite::Cidr("10.0.0.0/8".into())));
+    assert_eq!(parse_split_site("2001:db8::1"), Ok(SplitSite::Cidr("2001:db8::1/128".into())));
+    assert_eq!(parse_split_site("sub.example.co.uk"), Ok(SplitSite::Domain("sub.example.co.uk".into())));
+    for bad in ["Example.com", "example", "*.example.com", "https://example.com", "10.0.0.0/33", "10.0.0.0/08", "exa mple.com", "-a.com", "a..com"] {
+        assert!(parse_split_site(bad).is_err(), "{bad} should be refused");
+    }
+    let ok = |apps: &[&str]| validate_split(&SplitTunnel { mode: SplitMode::Bypass, apps: apps.iter().map(|s| s.to_string()).collect(), sites: vec![] });
+    assert!(ok(&["Discord.exe", "steam (beta)+.EXE"]).is_ok());
+    for bad in ["discord", "C:\\x\\discord.exe", "a/b.exe", "x\".exe", " lead.exe", ".exe"] {
+        assert!(ok(&[bad]).is_err(), "{bad} should be refused");
+    }
+    assert!(ok(&vec!["a.exe"; 65]).is_err());
+}
+
+#[test]
+fn split_and_encrypt_configs_pass_engine_check() {
+    let ctx = ctx();
+    let split = SplitTunnel {
+        mode: SplitMode::Bypass,
+        apps: vec!["Discord.exe".into(), "steam (beta)+.exe".into()],
+        sites: vec!["netflix.com".into(), "192.168.50.0/24".into(), "2001:db8::/32".into(), "203.0.113.7".into()],
+    };
+    for p in profiles().into_iter().take(3) {
+        for encrypt in [EncryptScope::All, EncryptScope::Traffic, EncryptScope::Dns] {
+            for mode in [SplitMode::Off, SplitMode::Bypass, SplitMode::Only] {
+                for ipv6 in [Ipv6Mode::Tunnel, Ipv6Mode::Disable] {
+                    let o = ShadowOptions { encrypt, ipv6, block_trackers: true, split: SplitTunnel { mode, ..split.clone() }, ..Default::default() };
+                    check(&format!("{} {encrypt:?} {mode:?} {ipv6:?}", p.name), &shadow_config(&p, &o, &ctx).unwrap());
+                }
+            }
+        }
+        let sites_only = ShadowOptions { split: SplitTunnel { mode: SplitMode::Only, apps: vec![], sites: vec!["example.org".into()] }, ..Default::default() };
+        check(&format!("{} only sites", p.name), &shadow_config(&p, &sites_only, &ctx).unwrap());
+        let apps_only = ShadowOptions { split: SplitTunnel { mode: SplitMode::Bypass, apps: vec!["game.exe".into()], sites: vec![] }, ..Default::default() };
+        check(&format!("{} bypass apps", p.name), &shadow_config(&p, &apps_only, &ctx).unwrap());
     }
 }
 

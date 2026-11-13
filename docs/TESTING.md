@@ -172,3 +172,22 @@ Generated configs run against the live engine (three lookups each: one popular, 
 | Quad9, DNS-over-TLS | Yes | 6.7 KB up, 17.9 KB down | 72 ms |
 
 The latency shown for LOTUS is that uncached lookup, repeated every 20 seconds. From 1.5.1 it is the middle of three such lookups: over 25 readings, one lookup per reading spread 8-83 ms (one slow outlier), the middle of three 8-18 ms, with the same typical value (about 10 ms). `sing-box check` passes for every provider and transport with the relay (`engine_check`).
+## SHADOW: what goes through the server, and split tunnelling
+
+**Send through your server** chooses *Traffic and DNS* (default), *Traffic only* (lookups go straight to the encrypted resolver) or *DNS only* (lookups go through the server, traffic uses the normal connection). **Split tunnelling** either excludes listed apps and sites from the tunnel or sends only them through it. Apps match by program file name in any folder, ignoring case; sites match the domain and its subdomains, or an IP address or range. LOTUS's own checks (handshake, routing proof, latency) always take the tunnel, so a split never makes a broken tunnel look healthy.
+
+Generated configs pass `sing-box check` for three protocols × every choice × every split mode × IPv6 on and off (`engine_check`). They were then run against a stand-in exit server, with a local proxy in place of the TUN adapter. Each request was judged from both ends (the client engine's outbound, and whether the server received it):
+
+| Setting | curl.exe | powershell.exe | DNS reaches the server |
+|---|---|---|---|
+| Traffic and DNS | tunnel | tunnel | yes |
+| Traffic only | tunnel | tunnel | no (straight to resolver) |
+| DNS only | direct | direct | yes |
+| Exclude curl.exe, cloudflare.com, 1.0.0.1 | direct | direct to the listed site and IP, tunnel otherwise | yes |
+| Only curl.exe and ipify.org | tunnel | tunnel to ipify.org only | yes |
+
+In every case the request to LOTUS's probe address went through the tunnel.
+
+*Data secured* counts only tunnelled bytes when some traffic is direct: the service samples the engine's per-connection counters four times a second and assigns bytes of connections that opened and closed between samples in the proportion just observed. With a 15 MB tunnelled download, a simultaneous 20 MB direct download and 40 short tunnelled requests, it counted 15.42 MB for 15.41 MB actually tunnelled (server at about 6 MB/s) and 15.22 MB for 15.21 MB (unthrottled), and none of the direct download.
+
+Throughput with the stand-in server on the same PC (so this is LOTUS's own overhead, median of three 25 MB downloads): 638 Mbit/s without LOTUS, 500 excluded (direct through LOTUS), 566 tunnelled, 573 with DNS only. With a real server the server's own link is the limit.

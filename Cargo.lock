@@ -2247,7 +2247,7 @@ checksum = "5d15f86d12da44cd8d4ec3c73984537eb7f4cadcb9776a575a0a8a05ca11005c"
 
 [[package]]
 name = "lotus-app"
-version = "1.5.1"
+version = "1.6.0"
 dependencies = [
  "anyhow",
  "lotus-core",
@@ -2267,7 +2267,7 @@ dependencies = [
 
 [[package]]
 name = "lotus-core"
-version = "1.5.1"
+version = "1.6.0"
 dependencies = [
  "base64 0.22.1",
  "percent-encoding",
@@ -2280,7 +2280,7 @@ dependencies = [
 
 [[package]]
 name = "lotus-service"
-version = "1.5.1"
+version = "1.6.0"
 dependencies = [
  "anyhow",
  "futures-util",
