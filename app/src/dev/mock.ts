@@ -104,9 +104,31 @@ async function downloadUpdate() {
   pushUpdate({ phase: "ready", progress: 1 });
 }
 
-function connect() {
-  push({ state: "connecting", mode: settings.mode, error: null });
-  window.setTimeout(() => goLive(0), 1300);
+const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
+/** Set window.__LOTUS_MOCK_FAIL__ = "shadow" (or "lotus") to make that mode fail to connect. */
+const failing = () => (window as unknown as { __LOTUS_MOCK_FAIL__?: string }).__LOTUS_MOCK_FAIL__;
+
+/** Mirrors the app: the other mode stays on until the new one connects, and comes back if it fails. */
+async function connect() {
+  const target = settings.mode;
+  const prev = status.state === "connected" && status.mode && status.mode !== target ? status.mode : null;
+  window.clearInterval(ticker);
+  push({ state: "connecting", mode: target, error: null, connected_since: null, latency_ms: null, traffic: { up_rate: 0, down_rate: 0, up_total: 0, down_total: 0 } });
+  await wait(1300);
+  if (failing() === target) {
+    push({ state: "error", error: { code: "server_unreachable", message: "The server didn't answer." } });
+    if (!prev) return;
+    await wait(500);
+    settings = { ...settings, mode: prev };
+    void emit("lotus://settings", settings);
+    push({ state: "connecting", mode: prev, error: null });
+    await wait(900);
+    settings = { ...settings, mode: prev };
+    goLive(0);
+    const name = (m: string) => m.toUpperCase();
+    throw { code: "server_unreachable", message: `${name(target)} couldn't connect, so ${name(prev)} is back on. The server didn't answer.` };
+  }
+  goLive(0);
 }
 
 function goLive(ageMs: number) {
@@ -121,7 +143,7 @@ function goLive(ageMs: number) {
     profile_name: mode === "shadow" ? p?.name ?? null : null,
     protocol_label: mode === "shadow" ? "VLESS · REALITY" : null,
     exit: mode === "shadow" ? { ipv4: "203.0.113.10", ipv6: null, country: "DE", colo: "FRA" } : { ipv4: "192.0.2.44", ipv6: null, country: "US", colo: null },
-    latency_ms: mode === "shadow" ? 38 : null,
+    latency_ms: mode === "shadow" ? 38 : 14,
     protections:
       mode === "lotus"
         ? [
@@ -134,11 +156,13 @@ function goLive(ageMs: number) {
   });
   window.clearInterval(ticker);
   ticker = window.setInterval(() => {
-    if (status.mode !== "shadow") return;
-    const up = Math.round(4_000 + Math.random() * 40_000);
-    const down = Math.round(60_000 + Math.random() * 2_400_000);
+    if (status.state !== "connected") return;
+    const shadow = status.mode === "shadow";
+    // LOTUS only carries encrypted DNS: a few hundred bytes a second.
+    const up = shadow ? Math.round(4_000 + Math.random() * 40_000) : Math.round(Math.random() * 900);
+    const down = shadow ? Math.round(60_000 + Math.random() * 2_400_000) : Math.round(Math.random() * 2_600);
     push({
-      latency_ms: 34 + Math.round(Math.random() * 8),
+      latency_ms: shadow ? 34 + Math.round(Math.random() * 8) : 11 + Math.round(Math.random() * 9),
       traffic: { up_rate: up, down_rate: down, up_total: status.traffic.up_total + up, down_total: status.traffic.down_total + down },
     });
   }, 1000);
@@ -174,9 +198,19 @@ export async function installMock() {
       switch (cmd) {
         case "bootstrap":
           return { settings, profiles, status, service_connected: true, providers, version: "1.0.2", engine_version: "1.12.0", store_warning: null } satisfies Bootstrap;
-        case "save_settings":
+        case "save_settings": {
+          const old = settings;
           settings = a.settings as AppSettings;
+          // A live session picks up its mode's changes at once.
+          const m = status.state === "connected" ? status.mode : null;
+          if (m && JSON.stringify(old[m]) !== JSON.stringify(settings[m])) {
+            const keep = settings.mode;
+            settings = { ...settings, mode: m };
+            await connect();
+            settings = { ...settings, mode: keep };
+          }
           return settings;
+        }
         case "set_mode":
           settings = { ...settings, mode: a.mode as AppSettings["mode"] };
           return settings;

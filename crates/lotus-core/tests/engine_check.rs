@@ -228,6 +228,8 @@ fn lotus_configs_pass_engine_check() {
             for (trackers, malware) in [(false, false), (true, true)] {
                 let o = LotusOptions { provider, transport, block_trackers: trackers, block_malware: malware, ..Default::default() };
                 check(&format!("lotus {provider:?} {transport:?}"), &lotus_config(&o, &ctx, &LotusListen::default()).unwrap());
+                let relayed = LotusListen { relay_port: Some(39091), ..Default::default() };
+                check(&format!("lotus {provider:?} {transport:?} (relay)"), &lotus_config(&o, &ctx, &relayed).unwrap());
             }
         }
     }

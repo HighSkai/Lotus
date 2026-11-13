@@ -21,6 +21,8 @@ pub struct ServiceClient {
     next_id: Arc<AtomicU64>,
     pub last_status: Arc<Mutex<Option<Status>>>,
     pub connected: Arc<std::sync::atomic::AtomicBool>,
+    /// Every status push, for callers that wait on an outcome.
+    status_tx: Arc<tokio::sync::watch::Sender<Option<Status>>>,
 }
 
 #[derive(Clone, serde::Serialize)]
@@ -52,6 +54,7 @@ impl ServiceClient {
             next_id: Arc::new(AtomicU64::new(1)),
             last_status: Default::default(),
             connected: Default::default(),
+            status_tx: Arc::new(tokio::sync::watch::channel(None).0),
         };
         let c = me.clone();
         tauri::async_runtime::spawn(async move { c.run(app).await });
@@ -111,6 +114,7 @@ impl ServiceClient {
                 ServerMessage::Status { status } => {
                     let first = !self.connected.swap(true, Ordering::SeqCst);
                     *self.last_status.lock().unwrap() = Some(status.clone());
+                    self.status_tx.send_replace(Some(status.clone()));
                     if first {
                         let _ = app.emit("lotus://service", ServiceEvent { connected: true, message: None });
                         on_service_up(app);
@@ -157,6 +161,10 @@ impl ServiceClient {
 
     pub fn status(&self) -> Option<Status> {
         self.last_status.lock().unwrap().clone()
+    }
+
+    pub fn watch_status(&self) -> tokio::sync::watch::Receiver<Option<Status>> {
+        self.status_tx.subscribe()
     }
 }
 

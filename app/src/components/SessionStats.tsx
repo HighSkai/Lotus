@@ -80,45 +80,45 @@ export function SessionStats({
   const elapsed = running && since ? now - since : 0;
   const total = (live?.traffic.up_total ?? 0) + (live?.traffic.down_total ?? 0);
   const b = byteParts(total);
-  const active = (live?.protections ?? []).filter((p) => p.active);
+  // LOTUS encrypts DNS only, so its figures are the resolver's: lookup bytes
+  // and the round trip of a fresh lookup.
+  const detail =
+    mode === "shadow"
+      ? [`${bytes(live?.traffic.up_total ?? 0)} up, ${bytes(live?.traffic.down_total ?? 0)} down`, "Round trip to your server"]
+      : [`Encrypted DNS: ${bytes(live?.traffic.up_total ?? 0)} sent, ${bytes(live?.traffic.down_total ?? 0)} received`, "Time for a new DNS lookup"];
 
   return (
     <div className="grid h-10 w-full place-items-center">
       <AnimatePresence mode="wait" initial={false}>
         {kind === "live" ? (
           <motion.div key={`live-${mode}`} {...swap} className="flex items-baseline gap-2 text-[13.5px] text-muted-foreground">
-            {mode === "shadow" ? (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span tabIndex={0} className="outline-none">
+                  <Fig unit="secured">
+                    <NumberFlow value={b.value} format={{ minimumFractionDigits: b.digits, maximumFractionDigits: b.digits }} suffix={` ${b.unit}`} animated={animated} {...flow} />
+                  </Fig>
+                </span>
+              </TooltipTrigger>
+              <TooltipContent side="bottom">{detail[0]}</TooltipContent>
+            </Tooltip>
+            <Dot />
+            <Fig>
+              <Clock ms={elapsed} animated={animated} />
+            </Fig>
+            {live!.latency_ms != null && (
               <>
+                <Dot />
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <span tabIndex={0} className="outline-none">
-                      <Fig unit="secured">
-                        <NumberFlow value={b.value} format={{ minimumFractionDigits: b.digits, maximumFractionDigits: b.digits }} suffix={` ${b.unit}`} animated={animated} {...flow} />
+                      <Fig unit="ms">
+                        <NumberFlow value={live!.latency_ms} animated={animated} {...flow} />
                       </Fig>
                     </span>
                   </TooltipTrigger>
-                  <TooltipContent side="bottom">{`${bytes(live!.traffic.up_total)} up, ${bytes(live!.traffic.down_total)} down`}</TooltipContent>
+                  <TooltipContent side="bottom">{detail[1]}</TooltipContent>
                 </Tooltip>
-                <Dot />
-                <Fig>
-                  <Clock ms={elapsed} animated={animated} />
-                </Fig>
-                {live!.latency_ms != null && (
-                  <>
-                    <Dot />
-                    <Fig unit="ms">
-                      <NumberFlow value={live!.latency_ms} animated={animated} {...flow} />
-                    </Fig>
-                  </>
-                )}
-              </>
-            ) : (
-              <>
-                <Fig>
-                  <Clock ms={elapsed} animated={animated} />
-                </Fig>
-                <Dot />
-                <Fig unit={active.length === 1 ? "protection on" : "protections on"}>{active.length}</Fig>
               </>
             )}
           </motion.div>
@@ -133,7 +133,7 @@ export function SessionStats({
             {kind === "error"
               ? live?.error?.message ?? "Something went wrong"
               : kind === "last"
-                ? mode === "shadow"
+                ? last!.bytes > 0
                   ? `Last session: ${bytes(last!.bytes)} in ${duration(last!.ms)}`
                   : `Last session: ${duration(last!.ms)}`
                 : idle}

@@ -19,11 +19,11 @@ async function save(fn: (s: AppSettings) => AppSettings) {
   }
 }
 
-/** Changes that only take effect on the next connection get a gentle hint. */
+/** Changes apply to a live session at once; say so while it reconnects. */
 function useReconnectHint(scope: "lotus" | "shadow") {
   const status = useStore((s) => s.status);
-  const active = status?.mode === scope && (status.state === "connected" || status.state === "reconnecting");
-  return active ? <Hint>Changes apply the next time you connect.</Hint> : null;
+  const applying = status?.mode === scope && (status.state === "connecting" || status.state === "disconnecting");
+  return applying ? <Hint>Applying your change…</Hint> : null;
 }
 
 export function SettingsIndex({ nav }: { nav: Nav }) {

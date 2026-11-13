@@ -26,6 +26,49 @@ fn ipv6_loopback_available() -> bool {
     std::net::UdpSocket::bind("[::1]:0").is_ok()
 }
 
+/// A currently free loopback port for the resolver relay. Without one, LOTUS
+/// still works; it just can't count the bytes it encrypts.
+fn free_loopback_port(network: &str) -> Option<u16> {
+    if network == "udp" {
+        std::net::UdpSocket::bind("127.0.0.1:0").and_then(|s| s.local_addr()).map(|a| a.port()).ok()
+    } else {
+        std::net::TcpListener::bind("127.0.0.1:0").and_then(|s| s.local_addr()).map(|a| a.port()).ok()
+    }
+}
+
+/// Time one lookup the resolver can't answer from LOTUS's cache: a random
+/// name under the reserved example.com zone. This is the round trip a page
+/// pays for a name it hasn't visited recently.
+async fn lotus_latency() -> Option<u32> {
+    let name = format!("lotus-{:08x}.example.com", rand::random::<u32>());
+    let t = std::time::Instant::now();
+    match probe::dns_query("127.0.0.1:53".parse().unwrap(), &name, lotus_core::dnsmsg::TYPE_A, Duration::from_secs(4)).await {
+        Ok(_) => Some(t.elapsed().as_millis().max(1) as u32),
+        Err(_) => None,
+    }
+}
+
+/// Feed the engine's per-second byte counters into the published status.
+/// Totals accumulate across engine restarts within one session.
+fn spawn_traffic(inner: &Arc<Inner>, clash: engine::Clash) -> tokio::task::JoinHandle<()> {
+    let inner = inner.clone();
+    tokio::spawn(async move {
+        loop {
+            let _ = clash
+                .traffic(|up, down| {
+                    inner.update(|s| {
+                        s.traffic.up_rate = up;
+                        s.traffic.down_rate = down;
+                        s.traffic.up_total += up;
+                        s.traffic.down_total += down;
+                    })
+                })
+                .await;
+            tokio::time::sleep(Duration::from_secs(2)).await;
+        }
+    })
+}
+
 async fn debounce(rx: &mut tokio::sync::broadcast::Receiver<SysEvent>, first: SysEvent, wait: Duration) -> SysEvent {
     let mut ev = first;
     let deadline = tokio::time::Instant::now() + wait;
@@ -81,7 +124,8 @@ fn finish(inner: &Inner, mode: Mode, res: Result<(), ErrorInfo>, keep: &AtomicBo
 async fn start_lotus_engine(inner: &Inner, opts: &LotusOptions, with_v6: bool) -> Result<Engine, ErrorInfo> {
     let (port, secret) = engine::new_controller_endpoint().map_err(|e| fail("internal", e.to_string()))?;
     let ctx = EngineContext { clash_port: port, clash_secret: secret.clone(), tracker_ruleset: inner.paths.tracker_rules_str() };
-    let listen = LotusListen { v6: with_v6.then(|| "::1".to_string()), ..Default::default() };
+    let network = providers::lotus_resolver(opts).map(|r| singbox::resolver_network(r.transport)).unwrap_or("tcp");
+    let listen = LotusListen { v6: with_v6.then(|| "::1".to_string()), relay_port: free_loopback_port(network), ..Default::default() };
     let cfg = singbox::lotus_config(opts, &ctx, &listen).map_err(|e| fail("invalid_options", e))?;
     let mut eng = inner.spawn_engine(&cfg, port, secret, None).await?;
     if let Err(e) = eng.wait_ready(Duration::from_secs(10)).await {
@@ -147,26 +191,42 @@ async fn lotus_session(inner: &Arc<Inner>, opts: &LotusOptions, cancel: &Cancell
     }
     inner.save_record(SessionRecord { mode: Mode::Lotus, lotus: Some(opts.clone()), profile: None, shadow: None, boot_epoch: inner.boot_epoch(), resume_on_boot: opts.resume_on_boot });
     let protections = lotus_protections(opts);
+    let first_latency = lotus_latency().await;
     inner.update(|s| {
         s.state = ConnState::Connected;
         s.mode = Some(Mode::Lotus);
         s.connected_since = Some(now_ms());
         s.protections = protections.clone();
         s.error = None;
+        s.latency_ms = first_latency;
     });
     inner.log("LOTUS connected");
     spawn_origin_refresh(inner.clone(), true);
+    // Aborted when this session ends, whichever way it ends.
+    struct Abort(tokio::task::JoinHandle<()>);
+    impl Drop for Abort {
+        fn drop(&mut self) {
+            self.0.abort();
+        }
+    }
+    let mut traffic = Abort(spawn_traffic(inner, eng.clash.clone()));
 
     let mut events = inner.events.subscribe();
     let mut reconcile = tokio::time::interval(Duration::from_secs(10));
     let mut health = tokio::time::interval(Duration::from_secs(60));
+    let mut latency = tokio::time::interval(Duration::from_secs(20));
     health.tick().await;
     reconcile.tick().await;
+    latency.tick().await;
     let mut health_failures = 0u32;
     loop {
         let restart: bool;
         tokio::select! {
             _ = cancel.cancelled() => { eng.stop().await; return Ok(()); }
+            _ = latency.tick() => {
+                if let Some(ms) = lotus_latency().await { inner.update(|s| s.latency_ms = Some(ms)); }
+                restart = false;
+            }
             why = eng.exited() => { inner.log(format!("LOTUS engine stopped: {why}")); restart = true; }
             ev = events.recv() => {
                 if let Ok(ev) = ev { debounce(&mut events, ev, Duration::from_millis(1500)).await; }
@@ -184,7 +244,13 @@ async fn lotus_session(inner: &Arc<Inner>, opts: &LotusOptions, cancel: &Cancell
             continue;
         }
         health_failures = 0;
-        inner.update(|s| s.state = ConnState::Reconnecting);
+        inner.update(|s| {
+            s.state = ConnState::Reconnecting;
+            s.latency_ms = None;
+            s.traffic.up_rate = 0;
+            s.traffic.down_rate = 0;
+        });
+        traffic.0.abort();
         eng.stop().await;
         let mut attempt = 0usize;
         loop {
@@ -199,7 +265,12 @@ async fn lotus_session(inner: &Arc<Inner>, opts: &LotusOptions, cancel: &Cancell
                 Ok(e) => {
                     eng = e;
                     *inner.clash.lock().unwrap() = Some(eng.clash.clone());
-                    inner.update(|s| s.state = ConnState::Connected);
+                    traffic = Abort(spawn_traffic(inner, eng.clash.clone()));
+                    let ms = lotus_latency().await;
+                    inner.update(|s| {
+                        s.state = ConnState::Connected;
+                        s.latency_ms = ms;
+                    });
                     break;
                 }
                 Err(e) => inner.log(format!("LOTUS restart failed: {}", e.message)),
@@ -365,23 +436,7 @@ async fn connect_once(inner: &Arc<Inner>, profile: &ServerProfile, opts: &Shadow
             });
         });
     }
-    let clash = eng.clash.clone();
-    let tinner = inner.clone();
-    let traffic = tokio::spawn(async move {
-        loop {
-            let _ = clash
-                .traffic(|up, down| {
-                    tinner.update(|s| {
-                        s.traffic.up_rate = up;
-                        s.traffic.down_rate = down;
-                        s.traffic.up_total += up;
-                        s.traffic.down_total += down;
-                    })
-                })
-                .await;
-            tokio::time::sleep(Duration::from_secs(2)).await;
-        }
-    });
+    let traffic = spawn_traffic(inner, eng.clash.clone());
     *inner.clash.lock().unwrap() = Some(eng.clash.clone());
     Ok(Live { engine: eng, traffic, ipv6 })
 }

@@ -4,7 +4,7 @@
 
 ### Private DNS and a bring-your-own-server VPN for Windows
 
-[![Release](https://img.shields.io/badge/release-v1.4.0-6e7bff?style=flat-square)](https://github.com/HighSkai/Lotus/releases/latest)
+[![Release](https://img.shields.io/badge/release-v1.5.0-6e7bff?style=flat-square)](https://github.com/HighSkai/Lotus/releases/latest)
 [![Platform](https://img.shields.io/badge/platform-Windows%2010%20%7C%2011%20x64-0078D4?style=flat-square)](#install)
 [![License](https://img.shields.io/badge/license-GPL--3.0-b398ff?style=flat-square)](LICENSE)
 [![Engine](https://img.shields.io/badge/engine-sing--box%201.14.4-1a1e3a?style=flat-square)](https://github.com/SagerNet/sing-box)
@@ -29,7 +29,7 @@ There's no account, no subscription, no telemetry, and no central LOTUS infrastr
 | **Needs a server** | No | Yes, any Debian, Ubuntu or Arch Linux VPS (one-script setup) |
 | **Encryption** | DNS-over-HTTPS, DoH over HTTP/3, DNS-over-TLS | VLESS + REALITY + XTLS-Vision by default; Hysteria2, Trojan, Shadowsocks-2022, TUIC, AnyTLS, NaiveProxy, WireGuard |
 | **Leak protection** | Every adapter uses LOTUS; plaintext DNS to any other server is blocked | Full TUN routing, DNS through the tunnel, persistent kill switch |
-| **Extras** | Tracker blocking, malicious-domain filtering, custom resolvers, usage history | Live console (server check, open connections, throughput), session stats, usage history per server |
+| **Extras** | Tracker blocking, malicious-domain filtering, custom resolvers, session stats (DNS data secured, lookup time), usage history | Live console (server check, open connections, throughput), session stats, usage history per server |
 
 > LOTUS mode can't hide your IP: that's only possible by relaying traffic through another machine, which is exactly what SHADOW does. Read more in [LOTUS vs SHADOW](docs/MODES.md).
 
@@ -38,7 +38,7 @@ There's no account, no subscription, no telemetry, and no central LOTUS infrastr
 <table>
   <tr>
     <td align="center"><img src="docs/screenshots/lotus-off.png" width="240" alt="LOTUS mode, off"><br><sub>LOTUS: ready</sub></td>
-    <td align="center"><img src="docs/screenshots/lotus-on.png" width="240" alt="LOTUS mode, protected, with session time and active protections"><br><sub>LOTUS: protected, with session stats</sub></td>
+    <td align="center"><img src="docs/screenshots/lotus-on.png" width="240" alt="LOTUS mode, protected, showing DNS data secured, session time and lookup time"><br><sub>LOTUS: protected, with session stats</sub></td>
     <td align="center"><img src="docs/screenshots/shadow-on.png" width="240" alt="SHADOW mode, connected, showing traffic secured, session time and latency"><br><sub>SHADOW: connected, traffic secured</sub></td>
   </tr>
   <tr>
@@ -52,6 +52,7 @@ There's no account, no subscription, no telemetry, and no central LOTUS infrastr
 
 - **Calm and quick.** Glass panels, a soft light that follows your pointer, and motion that settles in about 200 ms. It's ready about 120 ms after launch, and while nothing changes the window draws nothing at all. Drag it from anywhere along the top.
 - **See it working.** The SHADOW live console verifies your server (an authenticated handshake, plus what a stranger probing it sees: for REALITY, the camouflage site's real certificate), graphs throughput, and lists every open connection and whether it goes through the tunnel.
+- **Switch without dropping out.** Picking the other tab leaves your connection alone; press the switch to move over. If the new mode or server can't connect, the one you were on comes straight back. Changing the resolver or other settings while connected applies at once, and is undone if it would leave you offline.
 - **Usage history.** Data and time per day, month or year, per server. Only totals are kept, never the sites you visit, and only on your PC. Switch it off or clear it whenever you like.
 - **Keeps itself up to date.** LOTUS checks GitHub for new releases every few hours and downloads them in the background. Updates are signed, and install only when you press *Restart to update*. Protection pauses for a moment and resumes by itself. Or check by hand in **Settings → Updates**.
 - **Honest status.** SHADOW reports *Connected* only after a real handshake with your server **and** a request through Windows' own routing came back from your server's IP. LOTUS reports *Protected* only after the encrypted resolver actually answered.
@@ -79,7 +80,7 @@ The window you click on has **no privileges**. A small Windows service does the 
 
 ## Install
 
-1. Download **`LOTUS_1.4.0_x64-setup.exe`** from the [latest release](https://github.com/HighSkai/Lotus/releases/latest) and approve the administrator prompt.
+1. Download **`LOTUS_1.5.0_x64-setup.exe`** from the [latest release](https://github.com/HighSkai/Lotus/releases/latest) and approve the administrator prompt.
 2. Open LOTUS, choose **LOTUS** or **SHADOW** at the top, and press the switch.
 
 From 1.2.0 on, LOTUS updates itself (see **Settings → Updates**). Coming from 1.1.0 or earlier, install 1.2.0 once by hand.

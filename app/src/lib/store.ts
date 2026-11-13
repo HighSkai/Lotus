@@ -135,10 +135,13 @@ export async function updateSettings(fn: (s: AppSettings) => AppSettings) {
   if (!cur) return;
   const next = fn(structuredClone(cur));
   setState({ settings: next });
+  // Saving can take a while when it reconnects a live session; never let a
+  // late answer overwrite a newer change (the service also pushes settings).
   try {
-    setState({ settings: await api.saveSettings(next) });
+    const saved = await api.saveSettings(next);
+    if (state.settings === next) setState({ settings: saved });
   } catch (e) {
-    setState({ settings: cur });
+    if (state.settings === next) setState({ settings: cur });
     throw e;
   }
 }

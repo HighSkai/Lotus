@@ -59,9 +59,11 @@ pub fn create(app: &AppHandle) -> tauri::Result<()> {
                 "toggle" => {
                     tauri::async_runtime::spawn(async move {
                         let state = app.state::<AppState>();
-                        let on = state.svc.status().map(|s| !matches!(s.state, ConnState::Disconnected | ConnState::Error)).unwrap_or(false);
+                        let mode = state.store.lock().unwrap().settings.mode;
+                        // The other mode being on is a switch, not a turn-off.
+                        let on = state.svc.status().map(|s| !matches!(s.state, ConnState::Disconnected | ConnState::Error) && s.mode.unwrap_or(mode) == mode).unwrap_or(false);
                         let r = if on {
-                            state.svc.request(lotus_core::ipc::Command::Disconnect, std::time::Duration::from_secs(30)).await.map(|_| ())
+                            crate::commands::disconnect_now(&app).await
                         } else {
                             crate::commands::connect_current(&app).await
                         };
@@ -116,8 +118,15 @@ pub fn refresh(app: &AppHandle) {
         }
     };
     let _ = items.status.set_text(&text);
-    let on = up && !matches!(conn, ConnState::Disconnected | ConnState::Error);
-    let _ = items.toggle.set_text(if on { "Turn off" } else { "Turn on" });
+    let busy = up && !matches!(conn, ConnState::Disconnected | ConnState::Error);
+    let toggle = if !busy {
+        "Turn on".to_string()
+    } else if active_mode == mode {
+        "Turn off".to_string()
+    } else {
+        format!("Switch to {}", name(mode))
+    };
+    let _ = items.toggle.set_text(&toggle);
     let _ = items.toggle.set_enabled(up);
     let _ = items.lotus.set_checked(mode == Mode::Lotus);
     let _ = items.shadow.set_checked(mode == Mode::Shadow);

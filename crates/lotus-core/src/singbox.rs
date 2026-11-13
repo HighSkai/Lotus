@@ -35,11 +35,32 @@ pub struct LotusListen {
     pub v4: String,
     pub v6: Option<String>,
     pub port: u16,
+    /// Loopback port of the resolver relay. When set, the encrypted resolver
+    /// is reached through a local direct inbound, so its bytes pass through
+    /// the engine's router and show up in the traffic counters (DNS transports
+    /// dial on their own and are otherwise never counted).
+    pub relay_port: Option<u16>,
 }
 
 impl Default for LotusListen {
     fn default() -> Self {
-        Self { v4: "127.0.0.1".into(), v6: Some("::1".into()), port: 53 }
+        Self { v4: "127.0.0.1".into(), v6: Some("::1".into()), port: 53, relay_port: None }
+    }
+}
+
+/// Port the encrypted resolver listens on for a transport.
+pub fn resolver_port(t: DnsTransport) -> u16 {
+    match t {
+        DnsTransport::Dot => 853,
+        DnsTransport::Doh | DnsTransport::Doh3 => 443,
+    }
+}
+
+/// Network the relay must carry for a transport (DoH3 is QUIC).
+pub fn resolver_network(t: DnsTransport) -> &'static str {
+    match t {
+        DnsTransport::Doh3 => "udp",
+        DnsTransport::Doh | DnsTransport::Dot => "tcp",
     }
 }
 
@@ -94,17 +115,30 @@ pub fn lotus_config(opts: &LotusOptions, ctx: &EngineContext, listen: &LotusList
         inbounds.push(json!({"type": "direct", "tag": "dns-in6", "listen": v6, "listen_port": listen.port}));
         inbound_tags.push("dns-in6");
     }
-    let mut route = json!({
-        "rules": [{"inbound": inbound_tags, "action": "hijack-dns"}],
-        "final": "direct",
-    });
+    let mut rules = vec![json!({"inbound": inbound_tags, "action": "hijack-dns"})];
+    let mut server = dns_server("dns-encrypted", &r, None);
+    if let Some(relay) = listen.relay_port {
+        inbounds.push(json!({
+            "type": "direct",
+            "tag": "resolver-relay",
+            "listen": "127.0.0.1",
+            "listen_port": relay,
+            "network": resolver_network(r.transport),
+            "override_address": r.ip,
+            "override_port": resolver_port(r.transport),
+        }));
+        rules.push(json!({"inbound": ["resolver-relay"], "action": "route", "outbound": "direct"}));
+        server["server"] = json!("127.0.0.1");
+        server["server_port"] = json!(relay);
+    }
+    let mut route = json!({"rules": rules, "final": "direct"});
     if !rule_sets.is_empty() {
         route["rule_set"] = Value::Array(rule_sets);
     }
     Ok(json!({
         "log": {"level": "warn", "timestamp": false},
         "dns": {
-            "servers": [dns_server("dns-encrypted", &r, None)],
+            "servers": [server],
             "rules": dns_rules,
             "final": "dns-encrypted",
             "cache_capacity": 4096,

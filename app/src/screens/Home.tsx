@@ -97,7 +97,16 @@ export function Home({ nav }: { nav: Nav }) {
   }
 
   const label = LABELS[mode][visual];
-  const idle = mode === "lotus" ? "Encrypt DNS without changing your IP." : selected ? `Exit through ${selected.name}` : "Add a server to get started.";
+  // The other mode keeps running until this one is turned on.
+  const otherOn = !!status?.mode && status.mode !== mode && (status.state === "connected" || status.state === "reconnecting");
+  const NAME = { lotus: "LOTUS", shadow: "SHADOW" } as const;
+  const idle = otherOn
+    ? `${NAME[status!.mode!]} is still on. Turn on ${NAME[mode]} to switch.`
+    : mode === "lotus"
+      ? "Encrypt DNS without changing your IP."
+      : selected
+        ? `Exit through ${selected.name}`
+        : "Add a server to get started.";
   const blocking = [settings.lotus.block_trackers && "Trackers", (live?.protections.find((p) => p.id === "malware")?.active ?? (settings.lotus.block_malware && provider?.malware_variant)) && "Malware"]
     .filter(Boolean)
     .join(" · ");
@@ -120,7 +129,7 @@ export function Home({ nav }: { nav: Nav }) {
           </AnimatePresence>
         </div>
         <PowerSwitch visual={visual} mode={mode} onToggle={toggle} disabled={!service.connected} />
-        <SessionStats visual={visual} mode={mode} live={live} now={now} last={last} idle={idle} animated={!reduced} />
+        <SessionStats visual={visual} mode={mode} live={live} now={now} last={otherOn ? null : last} idle={idle} animated={!reduced} />
       </section>
 
       <AnimatePresence mode="wait" initial={false}>

@@ -18,6 +18,10 @@ pub struct AppState {
     pub store: Mutex<store::Store>,
     pub svc: ServiceClient,
     pub quitting: std::sync::atomic::AtomicBool,
+    /// Bumped by every connect or disconnect the user asks for. A switch that
+    /// is still waiting for its outcome gives up (and never rolls back) once
+    /// the user has asked for something newer.
+    pub ops: std::sync::atomic::AtomicU64,
 }
 
 fn main() {
@@ -34,7 +38,7 @@ fn main() {
             let dir = app.path().app_local_data_dir()?;
             let store = store::Store::load(dir);
             let svc = ServiceClient::start(app.handle().clone());
-            app.manage(AppState { store: Mutex::new(store), svc, quitting: Default::default() });
+            app.manage(AppState { store: Mutex::new(store), svc, quitting: Default::default(), ops: Default::default() });
             app.manage(updater::Updates::new(app.package_info().version.to_string()));
             tray::create(app.handle())?;
             updater::spawn_background(app.handle().clone());

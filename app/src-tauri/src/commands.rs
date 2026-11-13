@@ -9,6 +9,7 @@ use lotus_core::providers::{ProviderInfo, PROVIDERS};
 use lotus_core::*;
 use serde::Serialize;
 use serde_json::Value;
+use std::sync::atomic::Ordering;
 use std::time::Duration;
 use tauri::{AppHandle, Emitter, Manager, State};
 use tauri_plugin_autostart::ManagerExt as _;
@@ -91,23 +92,70 @@ fn emit_settings(app: &AppHandle, s: &AppSettings) {
 }
 
 #[tauri::command]
-pub fn save_settings(app: AppHandle, state: State<'_, AppState>, settings: AppSettings) -> CmdResult<AppSettings> {
+pub async fn save_settings(app: AppHandle, settings: AppSettings) -> CmdResult<AppSettings> {
     validate::validate_lotus_options(&settings.lotus).map_err(|e| err("invalid", e.to_string()))?;
     validate::validate_shadow_options(&settings.shadow).map_err(|e| err("invalid", e.to_string()))?;
-    let autostart_changed;
-    {
+    let state = app.state::<AppState>();
+    let (old, profiles) = {
         let mut store = state.store.lock().unwrap();
-        autostart_changed = store.settings.launch_at_startup != settings.launch_at_startup;
+        let old = store.settings.clone();
         store.settings = settings.clone();
         store.save_settings().map_err(|e| err("io", format!("Couldn't save settings: {e}")))?;
-    }
-    if autostart_changed {
+        (old, store.profiles.clone())
+    };
+    if old.launch_at_startup != settings.launch_at_startup {
         let al = app.autolaunch();
         let r = if settings.launch_at_startup { al.enable() } else { al.disable() };
         r.map_err(|e| err("autostart", format!("Couldn't change launch at startup: {e}")))?;
     }
     emit_settings(&app, &settings);
+    apply_live(&app, &old, &settings, &profiles).await?;
     Ok(settings)
+}
+
+/// Options that only matter when a session starts or ends; changing them
+/// never needs a reconnect.
+fn lotus_engine_opts(o: &LotusOptions) -> LotusOptions {
+    LotusOptions { resume_on_boot: false, record_usage: true, ..o.clone() }
+}
+
+fn shadow_engine_opts(o: &ShadowOptions) -> ShadowOptions {
+    ShadowOptions { resume_on_boot: false, record_usage: true, ..o.clone() }
+}
+
+/// Settings changed while their mode is on: reconnect with them now. If that
+/// fails, reconnect with the previous ones and put those back.
+async fn apply_live(app: &AppHandle, old: &AppSettings, new: &AppSettings, profiles: &[ServerProfile]) -> CmdResult<()> {
+    let state = app.state::<AppState>();
+    let Some(st) = state.svc.status().filter(is_on) else { return Ok(()) };
+    let changed = match st.mode {
+        Some(Mode::Lotus) => lotus_engine_opts(&old.lotus) != lotus_engine_opts(&new.lotus),
+        Some(Mode::Shadow) => shadow_engine_opts(&old.shadow) != shadow_engine_opts(&new.shadow),
+        None => false,
+    };
+    if !changed {
+        return Ok(());
+    }
+    let (Some(prev), Some(next)) = (running_command(old, profiles, &st), running_command(new, profiles, &st)) else { return Ok(()) };
+    let gen = state.ops.fetch_add(1, Ordering::SeqCst) + 1;
+    match switch_session(app, gen, next, prev).await {
+        Ok(()) => Ok(()),
+        Err(e) => {
+            if state.ops.load(Ordering::SeqCst) == gen {
+                let reverted = {
+                    let mut store = state.store.lock().unwrap();
+                    match st.mode {
+                        Some(Mode::Lotus) => store.settings.lotus = old.lotus.clone(),
+                        _ => store.settings.shadow = old.shadow.clone(),
+                    }
+                    let _ = store.save_settings();
+                    store.settings.clone()
+                };
+                emit_settings(app, &reverted);
+            }
+            Err(err(&e.code, format!("Couldn't connect with that change, so the previous settings are back on. {}", e.message)))
+        }
+    }
 }
 
 #[tauri::command]
@@ -115,6 +163,8 @@ pub async fn set_mode(app: AppHandle, mode: Mode) -> CmdResult<AppSettings> {
     switch_mode(&app, mode).await
 }
 
+/// Choose which mode the switch controls. A session that is already on keeps
+/// running; turning the switch on in the new mode is what moves it over.
 pub async fn switch_mode(app: &AppHandle, mode: Mode) -> CmdResult<AppSettings> {
     let state = app.state::<AppState>();
     let settings = {
@@ -124,32 +174,142 @@ pub async fn switch_mode(app: &AppHandle, mode: Mode) -> CmdResult<AppSettings> 
         store.settings.clone()
     };
     emit_settings(app, &settings);
-    // Switching while protected moves the protection to the new mode.
-    let active = state.svc.status().map(|s| matches!(s.state, ConnState::Connected | ConnState::Connecting | ConnState::Reconnecting) && s.mode != Some(mode)).unwrap_or(false);
-    if active {
-        if mode == Mode::Shadow && state.store.lock().unwrap().selected().is_none() {
-            state.svc.request(Command::Disconnect, Duration::from_secs(30)).await?;
-        } else {
-            connect_current(app).await?;
-        }
-    }
     Ok(settings)
 }
 
-pub async fn connect_current(app: &AppHandle) -> CmdResult<()> {
+fn mode_name(m: Mode) -> &'static str {
+    match m {
+        Mode::Lotus => "LOTUS",
+        Mode::Shadow => "SHADOW",
+    }
+}
+
+fn is_on(s: &Status) -> bool {
+    matches!(s.state, ConnState::Connected | ConnState::Reconnecting)
+}
+
+fn command_mode(c: &Command) -> Option<Mode> {
+    match c {
+        Command::ConnectLotus { .. } => Some(Mode::Lotus),
+        Command::ConnectShadow { .. } => Some(Mode::Shadow),
+        _ => None,
+    }
+}
+
+/// The command that starts `mode` from these settings.
+fn command_for(settings: &AppSettings, profiles: &[ServerProfile], mode: Mode, profile_id: Option<&str>) -> CmdResult<Command> {
+    Ok(match mode {
+        Mode::Lotus => Command::ConnectLotus { options: settings.lotus.clone() },
+        Mode::Shadow => {
+            let id = profile_id.or(settings.selected_profile.as_deref());
+            let profile = profiles.iter().find(|p| Some(p.id.as_str()) == id).cloned().ok_or_else(|| err("no_server", "Add or choose a server for SHADOW first."))?;
+            Command::ConnectShadow { profile, options: settings.shadow.clone() }
+        }
+    })
+}
+
+/// The command that restarts what is on right now, if anything is.
+fn running_command(settings: &AppSettings, profiles: &[ServerProfile], st: &Status) -> Option<Command> {
+    if !is_on(st) {
+        return None;
+    }
+    command_for(settings, profiles, st.mode?, st.profile_id.as_deref()).ok()
+}
+
+enum Outcome {
+    Connected,
+    /// The service refused the request; nothing was stopped.
+    Rejected(ErrorInfo),
+    Failed(ErrorInfo),
+    /// The user asked for something else meanwhile.
+    Superseded,
+}
+
+/// Send a connect command and wait until the new session is up or has failed.
+async fn start_and_wait(app: &AppHandle, gen: u64, cmd: Command) -> Outcome {
     let state = app.state::<AppState>();
-    let cmd = {
-        let store = state.store.lock().unwrap();
-        let s = &store.settings;
-        match s.mode {
-            Mode::Lotus => Command::ConnectLotus { options: s.lotus.clone() },
-            Mode::Shadow => {
-                let profile = store.selected().cloned().ok_or_else(|| err("no_server", "Add or choose a server for SHADOW first."))?;
-                Command::ConnectShadow { profile, options: s.shadow.clone() }
+    let target = command_mode(&cmd);
+    let profile_id = match &cmd {
+        Command::ConnectShadow { profile, .. } => Some(profile.id.clone()),
+        _ => None,
+    };
+    let mut rx = state.svc.watch_status();
+    rx.borrow_and_update();
+    let started = now_ms();
+    if let Err(e) = state.svc.request(cmd, Duration::from_secs(30)).await {
+        return Outcome::Rejected(e);
+    }
+    // SHADOW proves the handshake, IPv6 and routing before it reports Connected.
+    let deadline = tokio::time::Instant::now() + Duration::from_secs(90);
+    loop {
+        if state.ops.load(Ordering::SeqCst) != gen {
+            return Outcome::Superseded;
+        }
+        if let Some(s) = rx.borrow_and_update().clone() {
+            let ours = s.mode == target && (target == Some(Mode::Lotus) || s.profile_id == profile_id);
+            if ours && s.state == ConnState::Connected && s.connected_since.is_some_and(|t| t >= started) {
+                return Outcome::Connected;
+            }
+            if ours && s.state == ConnState::Error {
+                return Outcome::Failed(s.error.unwrap_or_else(|| err("connect_failed", "The connection failed.")));
             }
         }
+        tokio::select! {
+            r = rx.changed() => if r.is_err() { return Outcome::Failed(err("service_unavailable", "The LOTUS service disconnected.")) },
+            _ = tokio::time::sleep_until(deadline) => return Outcome::Failed(err("timeout", "It took too long to connect.")),
+            _ = tokio::time::sleep(Duration::from_millis(400)) => {}
+        }
+    }
+}
+
+/// Move from the session that is on (`prev`) to `next`. If `next` fails,
+/// start `prev` again and return why `next` failed.
+async fn switch_session(app: &AppHandle, gen: u64, next: Command, prev: Command) -> CmdResult<()> {
+    match start_and_wait(app, gen, next).await {
+        Outcome::Connected | Outcome::Superseded => Ok(()),
+        Outcome::Rejected(e) => Err(e),
+        Outcome::Failed(e) => {
+            let state = app.state::<AppState>();
+            if state.ops.load(Ordering::SeqCst) == gen {
+                let _ = state.svc.request(prev, Duration::from_secs(30)).await;
+            }
+            Err(e)
+        }
+    }
+}
+
+/// Turn on the mode the switch controls. If the other mode is on, it stays on
+/// until the new one has connected, and comes back if the new one fails.
+pub async fn connect_current(app: &AppHandle) -> CmdResult<()> {
+    let state = app.state::<AppState>();
+    let gen = state.ops.fetch_add(1, Ordering::SeqCst) + 1;
+    let (next, prev, mode) = {
+        let store = state.store.lock().unwrap();
+        let s = &store.settings;
+        let next = command_for(s, &store.profiles, s.mode, None)?;
+        let prev = state.svc.status().and_then(|st| running_command(s, &store.profiles, &st));
+        (next, prev, s.mode)
     };
-    state.svc.request(cmd, Duration::from_secs(30)).await.map(|_| ())
+    let Some(prev) = prev else {
+        return state.svc.request(next, Duration::from_secs(30)).await.map(|_| ());
+    };
+    let prev_mode = command_mode(&prev).unwrap_or(mode);
+    switch_session(app, gen, next, prev).await.map_err(|e| {
+        if prev_mode == mode {
+            return e;
+        }
+        // Back on the old mode: show it.
+        if state.ops.load(Ordering::SeqCst) == gen {
+            let settings = {
+                let mut store = state.store.lock().unwrap();
+                store.settings.mode = prev_mode;
+                let _ = store.save_settings();
+                store.settings.clone()
+            };
+            emit_settings(app, &settings);
+        }
+        err(&e.code, format!("{} couldn't connect, so {} is back on. {}", mode_name(mode), mode_name(prev_mode), e.message))
+    })
 }
 
 #[tauri::command]
@@ -157,9 +317,15 @@ pub async fn connect(app: AppHandle) -> CmdResult<()> {
     connect_current(&app).await
 }
 
-#[tauri::command]
-pub async fn disconnect(state: State<'_, AppState>) -> CmdResult<()> {
+pub async fn disconnect_now(app: &AppHandle) -> CmdResult<()> {
+    let state = app.state::<AppState>();
+    state.ops.fetch_add(1, Ordering::SeqCst);
     state.svc.request(Command::Disconnect, Duration::from_secs(40)).await.map(|_| ())
+}
+
+#[tauri::command]
+pub async fn disconnect(app: AppHandle) -> CmdResult<()> {
+    disconnect_now(&app).await
 }
 
 #[derive(Serialize)]
@@ -259,22 +425,36 @@ pub fn delete_profile(app: AppHandle, state: State<'_, AppState>, id: String) ->
 #[tauri::command]
 pub async fn select_profile(app: AppHandle, id: String) -> CmdResult<AppSettings> {
     let state = app.state::<AppState>();
-    let settings = {
+    let (settings, old_id, profiles) = {
         let mut store = state.store.lock().unwrap();
         if !store.profiles.iter().any(|p| p.id == id) {
             return Err(err("not_found", "That server no longer exists."));
         }
-        store.settings.selected_profile = Some(id.clone());
+        let old_id = store.settings.selected_profile.replace(id.clone());
         let _ = store.save_settings();
-        store.settings.clone()
+        (store.settings.clone(), old_id, store.profiles.clone())
     };
     emit_settings(&app, &settings);
-    // Already connected through SHADOW: move to the newly selected server.
-    let st = state.svc.status();
-    if let Some(st) = st {
-        if st.mode == Some(Mode::Shadow) && matches!(st.state, ConnState::Connected | ConnState::Reconnecting) && st.profile_id.as_deref() != Some(id.as_str()) {
-            connect_current(&app).await?;
+    // Already connected through SHADOW: move to the newly selected server,
+    // and stay on the old one if the new one doesn't connect.
+    let Some(st) = state.svc.status().filter(|s| is_on(s) && s.mode == Some(Mode::Shadow) && s.profile_id.as_deref() != Some(id.as_str())) else {
+        return Ok(settings);
+    };
+    let Some(prev) = running_command(&settings, &profiles, &st) else { return Ok(settings) };
+    let next = command_for(&settings, &profiles, Mode::Shadow, Some(&id))?;
+    let gen = state.ops.fetch_add(1, Ordering::SeqCst) + 1;
+    if let Err(e) = switch_session(&app, gen, next, prev).await {
+        if state.ops.load(Ordering::SeqCst) == gen {
+            let reverted = {
+                let mut store = state.store.lock().unwrap();
+                store.settings.selected_profile = old_id;
+                let _ = store.save_settings();
+                store.settings.clone()
+            };
+            emit_settings(&app, &reverted);
         }
+        let name = |pid: Option<&str>| profiles.iter().find(|p| Some(p.id.as_str()) == pid).map(|p| p.name.clone()).unwrap_or_else(|| "the server".into());
+        return Err(err(&e.code, format!("Couldn't connect to {}, so you're still on {}. {}", name(Some(&id)), name(st.profile_id.as_deref()), e.message)));
     }
     Ok(settings)
 }

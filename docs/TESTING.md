@@ -158,3 +158,17 @@ What changed:
 - The mode change is one GPU crossfade instead of ~35 animated colour variables.
 - Sliding pills use transforms, not layout measuring.
 - Page and switch motion settle in about 200–250 ms.
+
+## LOTUS session stats (v1.5.0)
+
+Encrypted DNS is sent by the engine's own DNS client, which the engine's traffic counters never saw, so LOTUS had no "data secured" figure. From 1.5.0 the resolver is reached through a loopback relay (a direct inbound on a random 127.0.0.1 port that forwards to the resolver's address and standard port). The DNS client still does the TLS/HTTPS/QUIC itself, so encryption and certificate checks are unchanged; only the TCP or UDP bytes pass through the router, where they are counted.
+
+Generated configs run against the live engine (three lookups each: one popular, one uncached under `example.com`, one cached):
+
+| Resolver | All answered | Counted | Uncached lookup |
+|---|---|---|---|
+| Cloudflare, DNS-over-HTTPS | Yes | 2.1 KB up, 4.7 KB down | 10 ms |
+| Cloudflare, DNS-over-HTTPS/3 | Yes | 4.9 KB up, 8.1 KB down | 9 ms |
+| Quad9, DNS-over-TLS | Yes | 6.7 KB up, 17.9 KB down | 72 ms |
+
+The latency shown for LOTUS is that uncached lookup, repeated every 20 seconds. `sing-box check` passes for every provider and transport with the relay (`engine_check`).
