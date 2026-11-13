@@ -21,6 +21,13 @@ async function save(fn: (s: AppSettings) => AppSettings) {
   }
 }
 
+const MOTION_HINT: Record<AppSettings["motion"], string> = {
+  system: "Follows Windows: Full, or Less when animation effects are off.",
+  full: "Springs, slides and small flourishes.",
+  reduce: "Short, smooth glides and fades. Nothing bounces, spins or loops.",
+  none: "Every change is instant.",
+};
+
 const ENCRYPT = {
   all: { label: "Traffic and DNS", sub: () => "Everything goes through your server" },
   traffic: { label: "Traffic only", sub: (r: string) => `Lookups go straight to ${r}, still encrypted. Faster, but ${r} sees your IP` },
@@ -80,19 +87,21 @@ export function GeneralSettings({ nav }: { nav: Nav }) {
         <ToggleRow label="Keep running in the tray" checked={s.close_to_tray} onChange={(v) => save((x) => ({ ...x, close_to_tray: v }))} />
         <ToggleRow label="Turn off when quitting" checked={s.disconnect_on_quit} onChange={(v) => save((x) => ({ ...x, disconnect_on_quit: v }))} />
       </List>
-      <List>
-        <SettingRow label="Animations">
+      <List title="Animations" hint={MOTION_HINT[s.motion]}>
+        <div className="p-1.5">
           <Seg
             label="Animations"
+            className="w-full"
             value={s.motion}
             onChange={(v) => save((x) => ({ ...x, motion: v }))}
             options={[
               { value: "system", label: "System" },
-              { value: "reduce", label: "Less" },
               { value: "full", label: "Full" },
+              { value: "reduce", label: "Less" },
+              { value: "none", label: "None" },
             ]}
           />
-        </SettingRow>
+        </div>
       </List>
     </Page>
   );

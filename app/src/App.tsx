@@ -1,13 +1,13 @@
 import { lazy, Suspense, useEffect, useLayoutEffect, useState, type ComponentType } from "react";
 import { flushSync } from "react-dom";
-import { AnimatePresence, MotionConfig, motion } from "motion/react";
+import { AnimatePresence, MotionConfig, MotionGlobalConfig, motion } from "motion/react";
 import { Minus, Settings, X } from "lucide-react";
 import { IconButton } from "@/components/Controls";
 import { Toaster } from "@/components/ui/sonner";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { api, errorText } from "@/lib/api";
-import { easeOut, spring } from "@/lib/motion";
+import { easeOut, fade, spring, useMotionLevel } from "@/lib/motion";
 import { setState, toast, useStore } from "@/lib/store";
 import { cn } from "@/lib/utils";
 import { minimizeWindow, startWindowDrag } from "@/lib/window";
@@ -122,7 +122,7 @@ function ModeSwitch({ mode, onChange }: { mode: Mode; onChange: (m: Mode) => voi
       value={mode}
       onValueChange={(v) => v && onChange(v as Mode)}
       aria-label="Mode"
-      className="glass relative grid h-[36px] w-[200px] grid-cols-2 justify-self-center rounded-full p-[3px]"
+      className="glass relative grid h-[36px] w-[200px] grid-cols-2 !gap-0 justify-self-center rounded-full p-[3px]"
     >
       <span
         aria-hidden="true"
@@ -138,7 +138,8 @@ function ModeSwitch({ mode, onChange }: { mode: Mode; onChange: (m: Mode) => voi
             key={it.value}
             value={it.value}
             className={cn(
-              "relative h-full rounded-full pl-[0.22em] text-[11px] font-semibold tracking-[0.22em] transition-colors duration-150 hover:bg-transparent data-[state=on]:bg-transparent",
+              // No side padding except the letter-spacing after the last letter, mirrored on the left: the ink is then exactly centred.
+              "relative h-full min-w-0 rounded-full px-0 pl-[0.22em] text-[11px] font-semibold tracking-[0.22em] transition-colors duration-150 hover:bg-transparent data-[state=on]:bg-transparent",
               active ? (it.value === "lotus" ? "text-primary" : "text-white") : "text-muted-foreground hover:text-foreground",
             )}
           >
@@ -155,6 +156,7 @@ const pageVariants = {
   center: { x: 0, opacity: 1 },
   exit: (dir: number) => ({ x: dir > 0 ? -14 : 20, opacity: 0 }),
 };
+const fadeVariants = { enter: { opacity: 0 }, center: { opacity: 1 }, exit: { opacity: 0 } };
 // Critically damped: settles in about 200 ms without overshoot.
 const pageTransition = { x: { type: "spring", stiffness: 720, damping: 54, mass: 0.7 }, opacity: { duration: 0.12, ease: easeOut } } as const;
 
@@ -167,6 +169,7 @@ export function App() {
   const [stack, setStack] = useState<Route[]>([]);
   const [dir, setDir] = useState(1);
   const mode: Mode = settings?.mode ?? "lotus";
+  const level = useMotionLevel();
 
   const nav: Nav = {
     push: (r) => {
@@ -190,8 +193,10 @@ export function App() {
   useLayoutEffect(() => {
     const root = document.documentElement;
     root.dataset.mode = mode;
-    root.dataset.motion = settings?.motion ?? "system";
-  }, [mode, settings?.motion]);
+    root.dataset.motion = level;
+    // "None": every Motion animation completes instantly, exits included.
+    MotionGlobalConfig.instantAnimations = level === "none";
+  }, [mode, level]);
 
   useEffect(() => {
     if (!ready) return;
@@ -218,8 +223,7 @@ export function App() {
     const swap = () => setState({ settings: { ...settings, mode: m } });
     // One GPU crossfade of the whole window instead of animating every colour token.
     const doc = document as Document & { startViewTransition?: (cb: () => void) => unknown };
-    const reduce = settings.motion === "reduce" || (settings.motion !== "full" && matchMedia("(prefers-reduced-motion: reduce)").matches);
-    if (doc.startViewTransition && !reduce) doc.startViewTransition(() => flushSync(swap));
+    if (doc.startViewTransition && level !== "none") doc.startViewTransition(() => flushSync(swap));
     else swap();
     try {
       setState({ settings: await api.setMode(m) });
@@ -231,10 +235,12 @@ export function App() {
   if (!ready || !settings) return <Backdrop on={false} />;
   const on = visualFor(status, mode, service.connected, false) === "on";
   const top = stack[stack.length - 1];
-  const reducedMotion = settings.motion === "reduce" ? "always" : settings.motion === "full" ? "never" : "user";
+  // Pages slide in full motion and crossfade in "Less".
+  const variants = level === "full" ? pageVariants : fadeVariants;
+  const transition = level === "full" ? pageTransition : { duration: 0.16, ease: easeOut };
 
   return (
-    <MotionConfig reducedMotion={reducedMotion}>
+    <MotionConfig reducedMotion="never">
       <TooltipProvider>
         <Backdrop on={on && !top} />
         <div className="relative z-1 flex h-full flex-col">
@@ -248,10 +254,10 @@ export function App() {
                 {updateReady && (
                   <motion.span
                     aria-hidden="true"
-                    initial={{ scale: 0 }}
-                    animate={{ scale: 1 }}
-                    exit={{ scale: 0 }}
-                    transition={spring}
+                    initial={level === "full" ? { scale: 0 } : { opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    exit={level === "full" ? { scale: 0 } : { opacity: 0 }}
+                    transition={level === "full" ? spring : fade}
                     className="pointer-events-none absolute top-[9px] left-[33px] size-2 rounded-full bg-primary ring-2 ring-[var(--bg-a)]"
                   />
                 )}
@@ -271,7 +277,7 @@ export function App() {
             <motion.div
               className="absolute inset-0"
               initial={false}
-              animate={top ? { opacity: 0, scale: 0.98 } : { opacity: 1, scale: 1 }}
+              animate={top ? { opacity: 0, scale: level === "full" ? 0.98 : 1 } : { opacity: 1, scale: 1 }}
               transition={{ duration: 0.16, ease: easeOut }}
               inert={!!top}
             >
@@ -279,7 +285,7 @@ export function App() {
             </motion.div>
             <AnimatePresence initial={false} custom={dir}>
               {top && (
-                <motion.div key={stack.length + top.name} className="absolute inset-0" custom={dir} variants={pageVariants} initial="enter" animate="center" exit="exit" transition={pageTransition}>
+                <motion.div key={stack.length + top.name} className="absolute inset-0" custom={dir} variants={variants} initial="enter" animate="center" exit="exit" transition={transition}>
                   <Suspense fallback={null}>
                     <Screen route={top} nav={nav} />
                   </Suspense>

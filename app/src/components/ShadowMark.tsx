@@ -1,6 +1,7 @@
 import { useId } from "react";
 import { motion } from "motion/react";
 import { LotusMark } from "./LotusMark";
+import { glide, instant, useMotionLevel } from "@/lib/motion";
 import type { Mode } from "@/lib/types";
 
 const CENTER = "M32 6 C40.5 16 42 29 32 44 C22 29 23.5 16 32 6 Z";
@@ -15,6 +16,8 @@ const swing = { type: "spring", stiffness: 260, damping: 22, mass: 0.9 } as cons
  */
 export function ShadowMark({ className, lit = false }: { className?: string; lit?: boolean }) {
   const id = useId().replace(/:/g, "");
+  const level = useMotionLevel();
+  const t = level === "full" ? swing : level === "reduce" ? glide : instant;
   return (
     <svg className={className} viewBox="0 0 64 64" aria-hidden="true" style={{ overflow: "visible", filter: lit ? "drop-shadow(0 0 5px rgb(150 130 255 / 0.55))" : undefined, transition: "filter 300ms ease" }}>
       <defs>
@@ -32,10 +35,10 @@ export function ShadowMark({ className, lit = false }: { className?: string; lit
           <circle cx="32" cy="27" r="22" fill="#000" />
         </mask>
       </defs>
-      <motion.g initial={false} animate={{ rotate: lit ? 0 : -28, opacity: lit ? 1 : 0.9 }} transition={swing}>
+      <motion.g initial={false} animate={{ rotate: lit ? 0 : -28, opacity: lit ? 1 : 0.9 }} transition={t}>
         <circle cx="32" cy="33" r="23" fill={`url(#sm${id})`} mask={`url(#sk${id})`} />
       </motion.g>
-      <motion.g initial={false} animate={{ y: lit ? 0 : 1.5 }} transition={swing}>
+      <motion.g initial={false} animate={{ y: lit ? 0 : 1.5 }} transition={t}>
         <g transform="translate(32 33) scale(0.82) translate(-32 -32)">
           <path d={OUTER} fill="#7C6FE6" opacity="0.6" transform="rotate(-72 32 44)" />
           <path d={OUTER} fill="#7C6FE6" opacity="0.6" transform="rotate(72 32 44)" />

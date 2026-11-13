@@ -12,6 +12,8 @@ pub enum Motion {
     System,
     Reduce,
     Full,
+    /// No animation at all: every change is instant.
+    None,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]

@@ -72,6 +72,9 @@ interface Preset {
   updateReady?: boolean;
   upTotal?: number;
   downTotal?: number;
+  motion?: AppSettings["motion"];
+  /** SHADOW with a split tunnel (adds the Routing row). */
+  split?: boolean;
 }
 
 let update: UpdateInfo = { phase: "up_to_date", current: "1.1.0", version: null, notes: null, progress: null, error: null, checked_at: Date.now() - 42 * 60_000 };
@@ -302,6 +305,8 @@ export async function installMock() {
   );
   const preset = ((window as unknown as { __LOTUS_MOCK__?: Preset }).__LOTUS_MOCK__ ?? {}) as Preset;
   if (preset.mode) settings = { ...settings, mode: preset.mode };
+  if (preset.motion) settings = { ...settings, motion: preset.motion };
+  if (preset.split) settings = { ...settings, shadow: { ...settings.shadow, split: { mode: "bypass", apps: ["Discord.exe"], sites: [] } } };
   updateAvailable = !!(preset.updateAvailable || preset.updateReady);
   if (preset.updateReady) update = { ...update, phase: "ready", version: "1.2.0", notes: NOTES, progress: 1, checked_at: Date.now() - 5 * 60_000 };
   if (preset.connected) {

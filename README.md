@@ -4,7 +4,7 @@
 
 ### Private DNS and a bring-your-own-server VPN for Windows
 
-[![Release](https://img.shields.io/badge/release-v1.6.0-6e7bff?style=flat-square)](https://github.com/HighSkai/Lotus/releases/latest)
+[![Release](https://img.shields.io/badge/release-v1.6.1-6e7bff?style=flat-square)](https://github.com/HighSkai/Lotus/releases/latest)
 [![Platform](https://img.shields.io/badge/platform-Windows%2010%20%7C%2011%20x64-0078D4?style=flat-square)](#install)
 [![License](https://img.shields.io/badge/license-GPL--3.0-b398ff?style=flat-square)](LICENSE)
 [![Engine](https://img.shields.io/badge/engine-sing--box%201.14.4-1a1e3a?style=flat-square)](https://github.com/SagerNet/sing-box)
@@ -81,7 +81,7 @@ The window you click on has **no privileges**. A small Windows service does the 
 
 ## Install
 
-1. Download **`LOTUS_1.6.0_x64-setup.exe`** from the [latest release](https://github.com/HighSkai/Lotus/releases/latest) and approve the administrator prompt.
+1. Download **`LOTUS_1.6.1_x64-setup.exe`** from the [latest release](https://github.com/HighSkai/Lotus/releases/latest) and approve the administrator prompt.
 2. Open LOTUS, choose **LOTUS** or **SHADOW** at the top, and press the switch.
 
 From 1.2.0 on, LOTUS updates itself (see **Settings → Updates**). Coming from 1.1.0 or earlier, install 1.2.0 once by hand.

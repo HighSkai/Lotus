@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import NumberFlow, { NumberFlowGroup } from "@number-flow/react";
 import { cn } from "@/lib/utils";
-import { easeOut } from "@/lib/motion";
+import { swapMotion, type MotionLevel } from "@/lib/motion";
 import { byteParts, bytes, clockParts, duration } from "@/lib/format";
 import type { LastSession } from "@/lib/store";
 import type { Mode, Status } from "@/lib/types";
@@ -46,12 +46,7 @@ function Fig({ children, unit }: { children: ReactNode; unit?: string }) {
 
 const Dot = () => <span className="text-faint">·</span>;
 
-const swap = {
-  initial: { opacity: 0, y: 4 },
-  animate: { opacity: 1, y: 0 },
-  exit: { opacity: 0, y: -3 },
-  transition: { duration: 0.14, ease: easeOut },
-};
+
 
 /**
  * One quiet line under the switch: what this session has done so far. While
@@ -64,7 +59,7 @@ export function SessionStats({
   now,
   last,
   idle,
-  animated,
+  level,
 }: {
   visual: Visual;
   mode: Mode;
@@ -72,8 +67,11 @@ export function SessionStats({
   now: number;
   last: LastSession | null;
   idle: string;
-  animated: boolean;
+  level: MotionLevel;
 }) {
+  // Digits roll only in full motion; otherwise they change in place.
+  const animated = level === "full";
+  const swap = swapMotion(level, 4);
   const running = (visual === "on" || visual === "reconnecting") && !!live;
   const kind = running ? "live" : visual === "error" ? "error" : visual === "off" && last?.mode === mode ? "last" : visual === "off" ? "idle" : "busy";
   const since = live?.connected_since ?? null;

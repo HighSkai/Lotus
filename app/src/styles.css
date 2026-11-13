@@ -329,6 +329,10 @@
     0 16px 36px -22px var(--shadow);
   transition: box-shadow 200ms ease, background-color 200ms ease;
 }
+.power-tone {
+  position: absolute;
+  inset: 0;
+}
 .power-fill {
   position: absolute;
   inset: 0;
@@ -397,11 +401,22 @@ html body[data-scroll-locked] {
 }
 
 /* ---------- Motion preferences --------------------------------------- */
-@media (prefers-reduced-motion: reduce) {
-  :root:not([data-motion="full"]) *,
-  :root:not([data-motion="full"]) *::before,
-  :root:not([data-motion="full"]) *::after { animation-duration: 1ms !important; animation-iteration-count: 1 !important; transition-duration: 1ms !important; }
+/* App.tsx resolves "System" against the OS setting and writes the result
+   to data-motion, so these are the only rules needed. */
+
+/* Less: changes still glide and fade (short, no overshoot), but nothing
+   loops, sweeps or spins. Busy shows as a gently breathing ring. */
+:root[data-motion="reduce"] .power-shimmer { display: none; }
+:root[data-motion="reduce"] .power[data-busy="true"] .ring { animation: breathe 1.6s ease-in-out infinite; }
+@keyframes breathe { 0%, 100% { opacity: 0.35; } 50% { opacity: 1; } }
+
+/* None: nothing animates or transitions; busy is a still ring. */
+:root[data-motion="none"] *,
+:root[data-motion="none"] *::before,
+:root[data-motion="none"] *::after {
+  animation: none !important;
+  transition: none !important;
+  scroll-behavior: auto !important;
 }
-:root[data-motion="reduce"] *,
-:root[data-motion="reduce"] *::before,
-:root[data-motion="reduce"] *::after { animation-duration: 1ms !important; animation-iteration-count: 1 !important; transition-duration: 1ms !important; }
+:root[data-motion="none"]::view-transition-old(root),
+:root[data-motion="none"]::view-transition-new(root) { animation: none !important; }

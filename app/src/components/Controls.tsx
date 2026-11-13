@@ -123,7 +123,7 @@ export function Seg<T extends string>({ value, options, onChange, label, classNa
       value={value}
       onValueChange={(v) => v && onChange(v as T)}
       aria-label={label}
-      className={cn("relative grid auto-cols-fr grid-flow-col rounded-full bg-fill p-[3px]", className)}
+      className={cn("relative grid auto-cols-fr grid-flow-col !gap-0 rounded-full bg-fill p-[3px]", className)}
     >
       <span
         aria-hidden="true"

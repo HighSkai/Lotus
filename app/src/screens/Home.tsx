@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { api, errorText } from "@/lib/api";
 import { country, rate, routingLabel } from "@/lib/format";
-import { easeOut } from "@/lib/motion";
+import { swapMotion, useMotionLevel } from "@/lib/motion";
 import { toast, useStore } from "@/lib/store";
 import type { Mode, Status } from "@/lib/types";
 import type { Nav } from "../App";
@@ -70,7 +70,7 @@ export function Home({ nav }: { nav: Nav }) {
   const selected = profiles.find((p) => p.id === settings.selected_profile) ?? null;
   const provider = settings.lotus.provider === "custom" ? null : providers.find((p) => p.id === settings.lotus.provider);
   const providerName = settings.lotus.provider === "custom" ? "Custom resolver" : provider?.name ?? "";
-  const reduced = settings.motion === "reduce";
+  const level = useMotionLevel();
   const routing = routingLabel(settings.shadow);
 
   async function toggle() {
@@ -114,33 +114,22 @@ export function Home({ nav }: { nav: Nav }) {
 
   return (
     <div className="flex h-full flex-col px-4 pb-3">
-      <section className="flex min-h-[236px] flex-1 flex-col items-center justify-center gap-4">
+      {/* Fixed height, so the switch sits in the same place in both modes
+          whatever the card below holds; it only gives way if a notice needs room. */}
+      <section className="flex min-h-[236px] shrink basis-[292px] flex-col items-center justify-center gap-4">
         <div className="grid h-8 place-items-center" aria-live="polite">
           <AnimatePresence initial={false}>
-            <motion.h2
-              key={`${mode}-${label}`}
-              initial={{ opacity: 0, y: 6 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -6 }}
-              transition={{ duration: 0.14, ease: easeOut }}
-              className="m-0 text-[24px] font-semibold tracking-[-0.025em] [grid-area:1/1]"
-            >
+            <motion.h2 key={`${mode}-${label}`} {...swapMotion(level, 6)} className="m-0 text-[24px] font-semibold tracking-[-0.025em] [grid-area:1/1]">
               {label}
             </motion.h2>
           </AnimatePresence>
         </div>
         <PowerSwitch visual={visual} mode={mode} onToggle={toggle} disabled={!service.connected} />
-        <SessionStats visual={visual} mode={mode} live={live} now={now} last={otherOn ? null : last} idle={idle} animated={!reduced} />
+        <SessionStats visual={visual} mode={mode} live={live} now={now} last={otherOn ? null : last} idle={idle} level={level} />
       </section>
 
       <AnimatePresence mode="wait" initial={false}>
-        <motion.div
-          key={!service.connected ? "down" : mode}
-          initial={{ opacity: 0, y: 6 }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: -3 }}
-          transition={{ duration: 0.14, ease: easeOut }}
-        >
+        <motion.div key={!service.connected ? "down" : mode} className="mt-auto" {...swapMotion(level, 6)}>
           {!service.connected ? (
             <Notice icon={TriangleAlert}>
               <div className="font-semibold">{service.message ?? "Connecting to the LOTUS service…"}</div>

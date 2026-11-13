@@ -95,7 +95,7 @@ export interface AppSettings {
   connect_on_launch: boolean;
   close_to_tray: boolean;
   disconnect_on_quit: boolean;
-  motion: "system" | "reduce" | "full";
+  motion: "system" | "reduce" | "full" | "none";
   auto_update: boolean;
 }
 
