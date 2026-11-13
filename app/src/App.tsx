@@ -16,9 +16,10 @@ import { About, AdvancedSettings, ConnectionSettings, DnsSettings, GeneralSettin
 import { AddServer, Servers, ServerSetup } from "./screens/Servers";
 import { ServerEditor } from "./screens/ServerEditor";
 import { Diagnostics, SpeedTest } from "./screens/Tools";
+import { Updates } from "./screens/Updates";
 
 export type Route =
-  | { name: "settings" | "general" | "dns" | "connection" | "killswitch" | "servers" | "add-server" | "setup" | "diagnostics" | "speed" | "advanced" | "about" | "logs" }
+  | { name: "settings" | "general" | "dns" | "connection" | "killswitch" | "servers" | "add-server" | "setup" | "diagnostics" | "speed" | "advanced" | "about" | "logs" | "updates" }
   | { name: "edit-server"; id?: string };
 
 export interface Nav {
@@ -58,6 +59,8 @@ function Screen({ route, nav }: { route: Route; nav: Nav }) {
       return <LogsPage nav={nav} />;
     case "about":
       return <About nav={nav} />;
+    case "updates":
+      return <Updates nav={nav} />;
   }
 }
 
@@ -132,6 +135,7 @@ export function App() {
   const settings = useStore((s) => s.settings);
   const status = useStore((s) => s.status);
   const service = useStore((s) => s.service);
+  const updateReady = useStore((s) => s.update?.phase === "ready" || s.update?.phase === "available");
   const [stack, setStack] = useState<Route[]>([]);
   const [dir, setDir] = useState(1);
   const mode: Mode = settings?.mode ?? "lotus";
@@ -197,10 +201,22 @@ export function App() {
         <div className="relative z-1 flex h-full flex-col">
           {/* The whole top strip moves the window; buttons inside it still click. */}
           <header className="grid h-[50px] shrink-0 grid-cols-[80px_1fr_80px] items-center px-2" onMouseDown={startWindowDrag}>
-            <div className="flex">
-              <IconButton label="Settings" onClick={() => (top?.name === "settings" ? nav.back() : (setDir(1), setStack([{ name: "settings" }])))}>
+            <div className="relative flex">
+              <IconButton label={updateReady ? "Settings (update available)" : "Settings"} onClick={() => (top?.name === "settings" ? nav.back() : (setDir(1), setStack([{ name: "settings" }])))}>
                 <Settings className="size-[17px]" />
               </IconButton>
+              <AnimatePresence>
+                {updateReady && (
+                  <motion.span
+                    aria-hidden="true"
+                    initial={{ scale: 0 }}
+                    animate={{ scale: 1 }}
+                    exit={{ scale: 0 }}
+                    transition={spring}
+                    className="pointer-events-none absolute top-[9px] left-[33px] size-2 rounded-full bg-primary ring-2 ring-[var(--bg-a)]"
+                  />
+                )}
+              </AnimatePresence>
             </div>
             <ModeSwitch mode={mode} onChange={switchMode} />
             <div className="flex justify-end">

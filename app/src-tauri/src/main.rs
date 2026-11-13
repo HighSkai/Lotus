@@ -6,6 +6,7 @@ mod commands;
 mod service_client;
 mod store;
 mod tray;
+mod updater;
 #[cfg(windows)]
 mod win;
 
@@ -28,12 +29,15 @@ fn main() {
         .plugin(tauri_plugin_autostart::init(tauri_plugin_autostart::MacosLauncher::LaunchAgent, Some(vec!["--hidden"])))
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_clipboard_manager::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .setup(move |app| {
             let dir = app.path().app_local_data_dir()?;
             let store = store::Store::load(dir);
             let svc = ServiceClient::start(app.handle().clone());
             app.manage(AppState { store: Mutex::new(store), svc, quitting: Default::default() });
+            app.manage(updater::Updates::new(app.package_info().version.to_string()));
             tray::create(app.handle())?;
+            updater::spawn_background(app.handle().clone());
             if !launched_hidden {
                 commands::create_main(app.handle());
             }
@@ -75,6 +79,9 @@ fn main() {
             commands::repair_service,
             commands::close_window,
             commands::quit,
+            updater::update_status,
+            updater::check_update,
+            updater::install_update,
         ])
         .build(tauri::generate_context!())
         .expect("error while building LOTUS")

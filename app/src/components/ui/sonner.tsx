@@ -23,6 +23,7 @@ const Toaster = ({ ...props }: ToasterProps) => {
       toastOptions={{
         classNames: {
           toast: "cn-toast backdrop-blur-2xl !text-[12.5px] !font-medium !shadow-[inset_0_1px_0_var(--glass-hi),0_16px_40px_-14px_var(--shadow)]",
+          actionButton: "!h-7 !rounded-full !bg-linear-120 !from-btn-a !to-btn-b !px-3 !text-[12px] !font-medium !text-white",
         },
       }}
       {...props}

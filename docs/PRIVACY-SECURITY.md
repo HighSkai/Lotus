@@ -2,7 +2,7 @@
 
 ## What LOTUS collects
 
-Nothing. There is no account, no analytics, no telemetry, no crash reporting, no update ping and no LOTUS server. LOTUS never records the sites you visit.
+Nothing. There is no account, no analytics, no telemetry, no crash reporting and no LOTUS server. The only background request is the update check described below, which you can turn off. LOTUS never records the sites you visit.
 
 - **Engine logs** run at *warning* level, so per-connection destinations aren't logged. Lines are kept **in memory only** (last 300). Server addresses, UUIDs, passwords, keys and IP addresses are redacted before they're stored. Nothing is written to disk.
 - **Network requests LOTUS itself makes:**
@@ -10,6 +10,7 @@ Nothing. There is no account, no analytics, no telemetry, no crash reporting, no
   - `https://1.1.1.1/cdn-cgi/trace`: fetched *by your server* for latency and health checks (every 30 s while SHADOW is connected). When connecting to a server for the first time, its IPv6 twin is fetched once to learn whether the server has IPv6.
   - The privacy check (only when you run it) queries `o-o.myaddr.l.google.com` (which reports the resolver's IP) and Team Cymru's DNS service (IP → network owner).
   - The speed test (only when you run it) uses `speed.cloudflare.com`.
+  - Update checks (from 1.2.0; on by default, switch off in **Settings → Updates**): shortly after start and every 6 hours, LOTUS fetches `latest.json` from the latest GitHub release (`github.com`, served from GitHub's download host). The request carries nothing beyond what any HTTPS request reveals, such as your IP address. A newer installer is downloaded from the same release and checked against the LOTUS update key built into the app; it only runs when you choose **Restart to update** and approve the Windows prompt.
 - Your chosen DNS resolver sees your lookups (encrypted in transit), and in SHADOW your VPS provider sees where your traffic goes. Choose providers you trust.
 
 ## Security model
@@ -26,8 +27,9 @@ Nothing. There is no account, no analytics, no telemetry, no crash reporting, no
 | Active probing of your server | REALITY relays unauthenticated probes to the real camouflage site |
 | Stolen profiles file | DPAPI encryption bound to your Windows account |
 | Disabled certificate checks | There is no "insecure" option anywhere; links that request it are refused with an explanation |
+| Fake or tampered update | Installers are signed with the LOTUS update key (minisign) and verified against the public key built into the app before they run; fetched over HTTPS; installing needs your click and administrator approval |
 
-**Never done:** installing root certificates, TLS interception, HTTPS inspection, running scripts from imported configs (WireGuard `PostUp` and similar are refused), downloading code at runtime.
+**Never done:** installing root certificates, TLS interception, HTTPS inspection, running scripts from imported configs (WireGuard `PostUp` and similar are refused), downloading code at runtime (the one exception is a signed LOTUS update, which only installs when you choose to).
 
 ## Limitations, stated plainly
 

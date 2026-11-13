@@ -1,7 +1,7 @@
 import { useRef, useState, type ReactNode } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { Activity, Check, ClipboardPaste, Copy, FileText, LoaderCircle, Pencil, Plus, Server, Trash2, TriangleAlert, WandSparkles } from "lucide-react";
-import { LotusMark } from "@/components/LotusMark";
+import { ModeMark } from "@/components/ShadowMark";
 import { Hint, IconButton, List, NavRow, Page, Pill } from "@/components/Controls";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
@@ -64,7 +64,7 @@ export function Servers({ nav }: { nav: Nav }) {
     >
       {profiles.length === 0 ? (
         <Card className="items-center gap-2 px-5 py-7 text-center">
-          <LotusMark mode={mode} className="mb-1 size-14" water />
+          <ModeMark mode={mode} className="mb-1 size-14" water />
           <div className="text-[15px] font-semibold">Bring your own server</div>
           <div className="max-w-[260px] text-[12.5px] text-muted-foreground">Websites see your server's address instead of yours.</div>
           <div className="mt-3 flex flex-wrap justify-center gap-2">
@@ -255,7 +255,7 @@ function Step({ n, title, children }: { n: number; title: string; children: Reac
   return (
     <Card className="gap-2.5 p-4">
       <div className="flex items-center gap-2.5 text-[13.5px] font-semibold">
-        <span className="grid size-[22px] shrink-0 place-items-center rounded-full bg-linear-120 from-on-a to-on-b text-[11.5px] font-bold text-white">{n}</span>
+        <span className="grid size-[22px] shrink-0 place-items-center rounded-full bg-linear-120 from-btn-a to-btn-b text-[11.5px] font-bold text-white">{n}</span>
         {title}
       </div>
       <div className="flex flex-col gap-2.5 text-[12.5px] leading-relaxed text-muted-foreground">{children}</div>

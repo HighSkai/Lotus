@@ -15,7 +15,7 @@ sing-box runs as a separate program that LOTUS starts and talks to over a local 
 
 ## Libraries compiled into LOTUS
 
-- Tauri 2 and plugins (single-instance, autostart, dialog, clipboard-manager): MIT or Apache-2.0
+- Tauri 2 and plugins (single-instance, autostart, dialog, clipboard-manager, updater): MIT or Apache-2.0
 - React and React DOM: MIT
 - Radix UI primitives, shadcn/ui components, Tailwind CSS, tw-animate-css, class-variance-authority, cn: MIT
 - Motion, Sonner, NumberFlow: MIT

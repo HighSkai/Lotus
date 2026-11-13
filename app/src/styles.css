@@ -48,6 +48,8 @@
   --color-on-b: var(--on-b);
   --color-on-c: var(--on-c);
   --color-accent-2: var(--accent-2);
+  --color-btn-a: var(--btn-a);
+  --color-btn-b: var(--btn-b);
 
   --radius-sm: 8px;
   --radius-md: 10px;
@@ -86,6 +88,8 @@
 @property --on-a { syntax: "<color>"; inherits: true; initial-value: #9ba7ee; }
 @property --on-b { syntax: "<color>"; inherits: true; initial-value: #b4a4ea; }
 @property --on-c { syntax: "<color>"; inherits: true; initial-value: #e3adc6; }
+@property --btn-a { syntax: "<color>"; inherits: true; initial-value: #5a62c8; }
+@property --btn-b { syntax: "<color>"; inherits: true; initial-value: #7f5cc4; }
 @property --track-off { syntax: "<color>"; inherits: true; initial-value: transparent; }
 @property --knob { syntax: "<color>"; inherits: true; initial-value: #fff; }
 @property --knob-shade { syntax: "<color>"; inherits: true; initial-value: #eef0fa; }
@@ -104,7 +108,7 @@
     --glass var(--mode-fade), --glass-strong var(--mode-fade), --glass-hi var(--mode-fade), --glass-edge var(--mode-fade),
     --popover var(--mode-fade), --fill var(--mode-fade), --fill-strong var(--mode-fade), --border var(--mode-fade), --input var(--mode-fade),
     --primary var(--mode-fade), --primary-foreground var(--mode-fade), --accent-2 var(--mode-fade),
-    --on-a var(--mode-fade), --on-b var(--mode-fade), --on-c var(--mode-fade),
+    --on-a var(--mode-fade), --on-b var(--mode-fade), --on-c var(--mode-fade), --btn-a var(--mode-fade), --btn-b var(--mode-fade),
     --track-off var(--mode-fade), --knob var(--mode-fade), --knob-shade var(--mode-fade),
     --glow var(--mode-fade), --shadow var(--mode-fade),
     --good var(--mode-fade), --warn var(--mode-fade), --destructive var(--mode-fade);
@@ -138,6 +142,8 @@
   --on-a: #9ba7ee;
   --on-b: #b4a4ea;
   --on-c: #e3adc6;
+  --btn-a: #5a62c8;
+  --btn-b: #7f5cc4;
   --track-off: rgb(110 118 170 / 0.1);
   --knob: #ffffff;
   --knob-shade: #eef0fa;
@@ -176,6 +182,8 @@
   --on-a: #4a52b0;
   --on-b: #6656bc;
   --on-c: #8462c8;
+  --btn-a: #4a52b0;
+  --btn-b: #7058c4;
   --track-off: rgb(150 150 225 / 0.08);
   --knob: #eeedf8;
   --knob-shade: #c9c5ec;

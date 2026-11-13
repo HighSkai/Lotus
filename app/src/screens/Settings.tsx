@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { AppWindow, Copy, Cpu, Eye, FileText, Gauge, Info, Lock, Power, RefreshCw, Server, Shield, ShieldCheck, SlidersHorizontal, Wrench, Zap } from "lucide-react";
+import { AppWindow, ArrowDownToLine, Copy, Cpu, Eye, FileText, Gauge, Info, Lock, Power, RefreshCw, Server, Shield, ShieldCheck, SlidersHorizontal, Wrench, Zap } from "lucide-react";
 import { Advanced, Hint, IconButton, List, NavRow, Page, Pill, RadioList, Seg, SettingRow, ToggleRow } from "@/components/Controls";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -9,6 +9,7 @@ import { api, errorText } from "@/lib/api";
 import { toast, updateSettings, useStore } from "@/lib/store";
 import type { AppSettings, DnsProviderId, DnsTransport } from "@/lib/types";
 import type { Nav } from "../App";
+import { updateLabel } from "./Updates";
 
 async function save(fn: (s: AppSettings) => AppSettings) {
   try {
@@ -29,6 +30,7 @@ export function SettingsIndex({ nav }: { nav: Nav }) {
   const settings = useStore((s) => s.settings)!;
   const profiles = useStore((s) => s.profiles);
   const providers = useStore((s) => s.providers);
+  const update = useStore((s) => s.update);
   const pname = settings.lotus.provider === "custom" ? "Custom" : providers.find((p) => p.id === settings.lotus.provider)?.name;
   return (
     <Page title="Settings" onBack={nav.back}>
@@ -42,6 +44,7 @@ export function SettingsIndex({ nav }: { nav: Nav }) {
       <List>
         <NavRow icon={ShieldCheck} label="Privacy check" onClick={() => nav.push({ name: "diagnostics" })} />
         <NavRow icon={Gauge} label="Speed test" onClick={() => nav.push({ name: "speed" })} />
+        <NavRow icon={ArrowDownToLine} label="Updates" value={updateLabel(update)} onClick={() => nav.push({ name: "updates" })} />
         <NavRow icon={Cpu} label="Advanced" onClick={() => nav.push({ name: "advanced" })} />
         <NavRow icon={Info} label="About" onClick={() => nav.push({ name: "about" })} />
       </List>
@@ -339,6 +342,7 @@ export function About({ nav }: { nav: Nav }) {
       <List title="Privacy">
         <SettingRow label="No account, ads, analytics or telemetry" sub="Logs stay in memory with addresses removed. Profiles are encrypted with your Windows account." />
         <SettingRow label="Network checks" sub="Exit IP via Cloudflare's trace page. The privacy check also queries Google and Team Cymru. Speed tests use speed.cloudflare.com, only on demand." />
+        <SettingRow label="Update checks" sub="Every few hours LOTUS asks GitHub for the latest release. Updates are signed and only install when you choose. Turn this off in Updates." />
       </List>
       <List title="Open-source components" hint="Full notices are in the licenses folder next to LOTUS.">
         <SettingRow label="sing-box" sub={`v${engine} · GPL-3.0-or-later`} />

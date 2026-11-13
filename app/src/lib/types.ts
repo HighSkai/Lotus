@@ -81,6 +81,7 @@ export interface AppSettings {
   close_to_tray: boolean;
   disconnect_on_quit: boolean;
   motion: "system" | "reduce" | "full";
+  auto_update: boolean;
 }
 
 export interface ErrorInfo {
@@ -169,4 +170,16 @@ export interface ImportResult {
   issues: { source: string; message: string }[];
   profiles: ServerProfile[];
   selected_profile: string | null;
+}
+
+export type UpdatePhase = "idle" | "checking" | "up_to_date" | "available" | "downloading" | "ready" | "installing" | "error";
+
+export interface UpdateInfo {
+  phase: UpdatePhase;
+  current: string;
+  version: string | null;
+  notes: string | null;
+  progress: number | null;
+  error: string | null;
+  checked_at: number | null;
 }

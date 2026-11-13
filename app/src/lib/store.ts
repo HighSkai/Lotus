@@ -1,8 +1,8 @@
 import { useSyncExternalStore } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { toast as sonner } from "sonner";
-import { api } from "./api";
-import type { AppSettings, Mode, ProviderInfo, ServerProfile, Status } from "./types";
+import { api, errorText } from "./api";
+import type { AppSettings, Mode, ProviderInfo, ServerProfile, Status, UpdateInfo } from "./types";
 
 /** Summary of the most recent session in this app run, shown while off. */
 export interface LastSession {
@@ -22,6 +22,7 @@ export interface State {
   engineVersion: string;
   storeWarning: string | null;
   lastSession: LastSession | null;
+  update: UpdateInfo | null;
 }
 
 let state: State = {
@@ -35,6 +36,7 @@ let state: State = {
   engineVersion: "",
   storeWarning: null,
   lastSession: null,
+  update: null,
 };
 
 const listeners = new Set<() => void>();
@@ -78,6 +80,31 @@ export function toast(text: string, tone: "info" | "error" = "info") {
   else sonner(text, { duration: 2600 });
 }
 
+/** Run the update installer; LOTUS exits and relaunches when it finishes. */
+export async function installUpdate() {
+  try {
+    await api.installUpdate();
+  } catch (e) {
+    toast(errorText(e), "error");
+  }
+}
+
+// Announce a downloaded update once per version while the window is open.
+let announced: string | null = null;
+function announce(u: UpdateInfo) {
+  if (u.phase !== "ready" || !u.version || announced === u.version) return;
+  announced = u.version;
+  sonner(`LOTUS ${u.version} is ready to install`, {
+    duration: 12000,
+    action: { label: "Restart", onClick: () => void installUpdate() },
+  });
+}
+
+function setUpdate(u: UpdateInfo) {
+  setState({ update: u });
+  announce(u);
+}
+
 export async function init() {
   await listen<Status>("lotus://status", (e) => {
     // Drop out-of-order pushes.
@@ -87,6 +114,7 @@ export async function init() {
     setState({ service: e.payload, ...(e.payload.connected ? {} : { status: null }) });
   });
   await listen<AppSettings>("lotus://settings", (e) => setState({ settings: e.payload }));
+  await listen<UpdateInfo>("lotus://update", (e) => setUpdate(e.payload));
   const b = await api.bootstrap();
   setState({
     ready: true,
@@ -99,6 +127,7 @@ export async function init() {
     engineVersion: b.engine_version,
     storeWarning: b.store_warning,
   });
+  api.updateStatus().then(setUpdate, () => {});
 }
 
 export async function updateSettings(fn: (s: AppSettings) => AppSettings) {

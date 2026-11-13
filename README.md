@@ -4,7 +4,7 @@
 
 ### Private DNS and a bring-your-own-server VPN for Windows
 
-[![Release](https://img.shields.io/badge/release-v1.1.0-6e7bff?style=flat-square)](https://github.com/HighSkai/Lotus/releases/latest)
+[![Release](https://img.shields.io/badge/release-v1.2.0-6e7bff?style=flat-square)](https://github.com/HighSkai/Lotus/releases/latest)
 [![Platform](https://img.shields.io/badge/platform-Windows%2010%20%7C%2011%20x64-0078D4?style=flat-square)](#install)
 [![License](https://img.shields.io/badge/license-GPL--3.0-b398ff?style=flat-square)](LICENSE)
 [![Engine](https://img.shields.io/badge/engine-sing--box%201.14.4-1a1e3a?style=flat-square)](https://github.com/SagerNet/sing-box)
@@ -51,6 +51,7 @@ There's no account, no subscription, no telemetry, and no central LOTUS infrastr
 ## Highlights
 
 - **Calm, glassy and quick.** Frosted-glass panels with a soft light that follows your pointer, springy animations that settle in about a quarter of a second, and live session stats under the switch. Drag the window from anywhere along the top.
+- **Keeps itself up to date.** LOTUS checks GitHub for new releases every few hours and downloads them in the background. Updates are signed, and install only when you press *Restart to update*. Protection pauses for a moment and resumes by itself. Or check by hand in **Settings → Updates**.
 - **Honest status.** SHADOW reports *Connected* only after a real handshake with your server **and** a request through Windows' own routing came back from your server's IP. LOTUS reports *Protected* only after the encrypted resolver actually answered.
 - **A kill switch that survives crashes.** Persistent Windows Filtering Platform rules allow only the tunnel. In testing, killing the engine *or the LOTUS service itself* leaked nothing, and the connection came back by itself.
 - **Bring your own server.** Paste a `vless://`, `ss://`, `trojan://`, `hysteria2://`, `tuic://`, `anytls://`, `naive+https://` link, a WireGuard `.conf` or sing-box JSON. Or run the included installer on a fresh VPS and paste the `lotus://` link it prints.
@@ -76,8 +77,10 @@ The window you click on has **no privileges**. A small Windows service does the 
 
 ## Install
 
-1. Download **`LOTUS_1.1.0_x64-setup.exe`** from the [latest release](https://github.com/HighSkai/Lotus/releases/latest) and approve the administrator prompt.
+1. Download **`LOTUS_1.2.0_x64-setup.exe`** from the [latest release](https://github.com/HighSkai/Lotus/releases/latest) and approve the administrator prompt.
 2. Open LOTUS, choose **LOTUS** or **SHADOW** at the top, and press the switch.
+
+From 1.2.0 on, LOTUS updates itself (see **Settings → Updates**). Coming from 1.1.0 or earlier, install 1.2.0 once by hand.
 
 Requirements: Windows 10 or 11 (x64). WebView2 ships with Windows 11 and is installed automatically if missing.
 
@@ -145,7 +148,7 @@ cd Lotus
 powershell -ExecutionPolicy Bypass -File scripts\build.ps1
 ```
 
-`build.ps1` fetches the pinned engine (SHA-256 verified), runs the test suite (every generated engine config is validated by the real `sing-box check`), builds the service and app, and writes the installer to `target\release\bundle\nsis\`.
+`build.ps1` fetches the pinned engine (SHA-256 verified), runs the test suite (every generated engine config is validated by the real `sing-box check`), builds the service and app, and writes the installer to `target\release\bundle\nsis\`. If the update signing key exists (`%USERPROFILE%\.tauri\lotus-updater.key`), it also signs the installer and writes `latest.json`; upload both with the release so installed copies can update.
 
 <details>
 <summary>Development loop and command-line control</summary>

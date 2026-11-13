@@ -3,7 +3,7 @@
 // Tauri is absent, so it never ships in a release build.
 import { mockIPC, mockWindows } from "@tauri-apps/api/mocks";
 import { emit } from "@tauri-apps/api/event";
-import type { AppSettings, Bootstrap, DiagnosticsReport, ProviderInfo, ServerProfile, Status } from "../lib/types";
+import type { AppSettings, Bootstrap, DiagnosticsReport, ProviderInfo, ServerProfile, Status, UpdateInfo } from "../lib/types";
 
 const providers: ProviderInfo[] = [
   { id: "cloudflare", name: "Cloudflare", doh3: true, dot: true, malware_variant: true, note: "Fastest worldwide" },
@@ -33,6 +33,7 @@ let settings: AppSettings = {
   close_to_tray: true,
   disconnect_on_quit: false,
   motion: "system",
+  auto_update: true,
 };
 
 let seq = 1;
@@ -65,8 +66,42 @@ interface Preset {
   mode?: AppSettings["mode"];
   connected?: boolean;
   sessionAgeMs?: number;
+  /** A newer version is published (found on the next check). */
+  updateAvailable?: boolean;
+  /** Start with the update already downloaded. */
+  updateReady?: boolean;
   upTotal?: number;
   downTotal?: number;
+}
+
+let update: UpdateInfo = { phase: "up_to_date", current: "1.1.0", version: null, notes: null, progress: null, error: null, checked_at: Date.now() - 42 * 60_000 };
+let updateAvailable = false;
+
+function pushUpdate(patch: Partial<UpdateInfo>) {
+  update = { ...update, ...patch };
+  void emit("lotus://update", update);
+}
+
+const NOTES = ["New SHADOW mark on the switch.", "Automatic updates."].join("\n");
+
+async function checkUpdate() {
+  pushUpdate({ phase: "checking", error: null });
+  await new Promise((r) => setTimeout(r, 900));
+  if (!updateAvailable) {
+    pushUpdate({ phase: "up_to_date", checked_at: Date.now() });
+    return update;
+  }
+  pushUpdate({ phase: "available", version: "1.2.0", notes: NOTES, checked_at: Date.now() });
+  if (settings.auto_update) void downloadUpdate();
+  return update;
+}
+
+async function downloadUpdate() {
+  for (let p = 0; p <= 1.001; p += 0.1) {
+    pushUpdate({ phase: "downloading", progress: p });
+    await new Promise((r) => setTimeout(r, 180));
+  }
+  pushUpdate({ phase: "ready", progress: 1 });
 }
 
 function connect() {
@@ -173,6 +208,15 @@ export async function installMock() {
           return { download_mbps: 412.6, upload_mbps: 88.1, latency_ms: 36, bytes_down: 40_000_000, bytes_up: 9_000_000, message: "Measured with speed.cloudflare.com." };
         case "logs":
           return [];
+        case "update_status":
+          return update;
+        case "check_update":
+          return checkUpdate();
+        case "install_update":
+          if (update.phase !== "ready") await downloadUpdate();
+          pushUpdate({ phase: "installing" });
+          window.setTimeout(() => pushUpdate({ phase: "ready" }), 2000);
+          return null;
         case "server_script":
           return "#!/bin/bash";
         default:
@@ -183,6 +227,8 @@ export async function installMock() {
   );
   const preset = ((window as unknown as { __LOTUS_MOCK__?: Preset }).__LOTUS_MOCK__ ?? {}) as Preset;
   if (preset.mode) settings = { ...settings, mode: preset.mode };
+  updateAvailable = !!(preset.updateAvailable || preset.updateReady);
+  if (preset.updateReady) update = { ...update, phase: "ready", version: "1.2.0", notes: NOTES, progress: 1, checked_at: Date.now() - 5 * 60_000 };
   if (preset.connected) {
     status = { ...status, traffic: { up_rate: 0, down_rate: 0, up_total: preset.upTotal ?? 0, down_total: preset.downTotal ?? 0 } };
     goLive(preset.sessionAgeMs ?? 0);

@@ -15,6 +15,9 @@ const ICON_BUSY: &[u8] = include_bytes!("../icons/tray/busy.png");
 const ICON_ERROR: &[u8] = include_bytes!("../icons/tray/error.png");
 
 pub struct TrayItems {
+    menu: Menu<Wry>,
+    update: MenuItem<Wry>,
+    update_shown: std::sync::atomic::AtomicBool,
     status: MenuItem<Wry>,
     toggle: MenuItem<Wry>,
     lotus: CheckMenuItem<Wry>,
@@ -29,6 +32,8 @@ pub fn create(app: &AppHandle) -> tauri::Result<()> {
     let lotus = CheckMenuItem::with_id(app, "mode_lotus", "LOTUS · private DNS", true, true, None::<&str>)?;
     let shadow = CheckMenuItem::with_id(app, "mode_shadow", "SHADOW · your server", true, false, None::<&str>)?;
     let quit = MenuItem::with_id(app, "quit", "Quit LOTUS", true, None::<&str>)?;
+    // Inserted under "Open LOTUS" only once an update has been downloaded.
+    let update = MenuItem::with_id(app, "update", "Restart to update", true, None::<&str>)?;
     let sep = || PredefinedMenuItem::separator(app);
     let menu = Menu::with_items(app, &[&status, &sep()?, &open, &toggle, &sep()?, &lotus, &shadow, &sep()?, &quit])?;
 
@@ -41,6 +46,13 @@ pub fn create(app: &AppHandle) -> tauri::Result<()> {
             let app = app.clone();
             match ev.id().as_ref() {
                 "open" => crate::commands::show_main(&app),
+                "update" => {
+                    tauri::async_runtime::spawn(async move {
+                        if crate::updater::install(&app).await.is_err() {
+                            crate::commands::show_main(&app);
+                        }
+                    });
+                }
                 "quit" => {
                     tauri::async_runtime::spawn(async move { crate::commands::quit_app(&app).await });
                 }
@@ -74,7 +86,7 @@ pub fn create(app: &AppHandle) -> tauri::Result<()> {
             }
         })
         .build(app)?;
-    app.manage(TrayItems { status, toggle, lotus, shadow, last_icon: std::sync::Mutex::new("off") });
+    app.manage(TrayItems { menu, update, update_shown: Default::default(), status, toggle, lotus, shadow, last_icon: std::sync::Mutex::new("off") });
     refresh(app);
     Ok(())
 }
@@ -125,5 +137,23 @@ pub fn refresh(app: &AppHandle) {
                 let _ = tray.set_icon(Some(img));
             }
         }
+    }
+}
+
+/// Show or hide the "Restart to update" item to match the update state.
+pub fn refresh_update(app: &AppHandle, info: &crate::updater::UpdateInfo) {
+    let Some(items) = app.try_state::<TrayItems>() else { return };
+    let ready = info.phase == crate::updater::Phase::Ready;
+    if let Some(v) = &info.version {
+        let _ = items.update.set_text(format!("Restart to update to {v}"));
+    }
+    let shown = items.update_shown.load(std::sync::atomic::Ordering::SeqCst);
+    if ready && !shown {
+        // After "LOTUS · status", the separator and "Open LOTUS".
+        if items.menu.insert(&items.update, 3).is_ok() {
+            items.update_shown.store(true, std::sync::atomic::Ordering::SeqCst);
+        }
+    } else if !ready && shown && info.phase != crate::updater::Phase::Installing && items.menu.remove(&items.update).is_ok() {
+        items.update_shown.store(false, std::sync::atomic::Ordering::SeqCst);
     }
 }

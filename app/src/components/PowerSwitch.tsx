@@ -1,6 +1,7 @@
-import { motion } from "motion/react";
+import { AnimatePresence, motion } from "motion/react";
 import { LotusMark } from "./LotusMark";
-import { easeOut } from "@/lib/motion";
+import { ShadowMark } from "./ShadowMark";
+import { easeOut, spring } from "@/lib/motion";
 import type { Mode } from "@/lib/types";
 
 export type Visual = "off" | "connecting" | "on" | "reconnecting" | "disconnecting" | "error";
@@ -63,7 +64,19 @@ export function PowerSwitch({ visual, mode, onToggle, disabled }: { visual: Visu
       >
         <motion.span className="power-knob" initial={false} animate={{ x: KNOB_X[visual] }} transition={knobSpring}>
           <span className="ring" />
-          <LotusMark mode={mode} />
+          {/* LOTUS shows the flower; SHADOW the flower in a crescent moon. */}
+          <AnimatePresence initial={false} mode="popLayout">
+            <motion.span
+              key={mode}
+              className="grid place-items-center"
+              initial={{ opacity: 0, scale: 0.6, rotate: -45 }}
+              animate={{ opacity: 1, scale: 1, rotate: 0 }}
+              exit={{ opacity: 0, scale: 0.6, rotate: 45 }}
+              transition={spring}
+            >
+              {mode === "lotus" ? <LotusMark mode="lotus" /> : <ShadowMark lit={checked} />}
+            </motion.span>
+          </AnimatePresence>
         </motion.span>
       </motion.span>
     </motion.button>

@@ -9,6 +9,7 @@ import type {
   ServerProfile,
   SpeedResult,
   TestResult,
+  UpdateInfo,
 } from "./types";
 
 export function errorText(e: unknown): string {
@@ -39,4 +40,7 @@ export const api = {
   repairService: () => invoke<void>("repair_service"),
   closeWindow: () => invoke<void>("close_window"),
   quit: () => invoke<void>("quit"),
+  updateStatus: () => invoke<UpdateInfo>("update_status"),
+  checkUpdate: () => invoke<UpdateInfo>("check_update"),
+  installUpdate: () => invoke<void>("install_update"),
 };

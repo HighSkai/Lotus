@@ -26,6 +26,8 @@ pub struct AppSettings {
     pub close_to_tray: bool,
     pub disconnect_on_quit: bool,
     pub motion: Motion,
+    /// Check for updates in the background and download them when found.
+    pub auto_update: bool,
 }
 
 impl Default for AppSettings {
@@ -40,6 +42,7 @@ impl Default for AppSettings {
             close_to_tray: true,
             disconnect_on_quit: false,
             motion: Motion::System,
+            auto_update: true,
         }
     }
 }
