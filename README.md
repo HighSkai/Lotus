@@ -23,7 +23,44 @@ LOTUS is a small desktop app with one switch and two ways to protect you:
 
 No account, no subscription, no telemetry, and no LOTUS servers in the middle. You pick the resolver and you run the server.
 
-## Two modes, one switch
+<br>
+
+<p align="center"><img src="docs/assets/features/feature-modes.webp" width="100%" alt="One switch, two modes. LOTUS, shown protected with 374 KB secured: encrypts every DNS lookup, and your IP address stays the same. SHADOW, shown connected with 1.35 GB secured: sends everything through a server you own."></p>
+
+<br>
+
+<p align="center"><img src="docs/assets/features/feature-routing.webp" width="100%" alt="Choose what goes through your server: traffic and DNS, traffic only for faster lookups, or DNS only. Change it while connected; if it can't connect, your previous setting comes back."></p>
+
+<br>
+
+<p align="center"><img src="docs/assets/features/feature-split.webp" width="100%" alt="Split tunnelling: keep games and streaming on your normal connection, or send only the apps and sites you pick through the tunnel. Shown excluding Discord, Steam and netflix.com, with apps open now ready to add."></p>
+
+<br>
+
+<p align="center"><img src="docs/assets/features/feature-console.webp" width="100%" alt="Watch your server at work: the live console shows the server, exit address, latency, open connections and live throughput, with a one-click check that it is really your server."></p>
+
+<br>
+
+<p align="center"><img src="docs/assets/features/feature-privacy.webp" width="100%" alt="Check for leaks in one click: the privacy check tests which resolver answers, the IPv4 and IPv6 exits, routing and the kill switch, and explains every result."></p>
+
+<br>
+
+<p align="center"><img src="docs/assets/features/feature-usage.webp" width="100%" alt="Usage that stays on your PC: data and time by day, month or year, per server and for LOTUS. Only totals are kept, never the sites you visit."></p>
+
+<br>
+
+## Also built in
+
+- **Honest status.** SHADOW says *Connected* only after a real handshake with your server and a test request through Windows' own routing came back from your server's address. LOTUS says *Protected* only once the encrypted resolver has answered.
+- **A kill switch that survives crashes.** Windows Filtering Platform rules let only the tunnel through. In testing, killing the engine or the LOTUS service leaked nothing, and the connection came back by itself.
+- **Switch without dropping out.** Choosing the other mode leaves your connection on until you press the switch. If the new mode or server can't connect, the previous one comes straight back.
+- **Secure by default.** There is no "allow insecure" option. Links that turn off certificate checks or use unencrypted or outdated protocols are refused, with an explanation.
+- **Private by design.** No accounts and no analytics. Engine logs stay in memory with addresses removed, and saved servers are encrypted with your Windows account.
+- **Bring your own server.** Paste a `vless://`, `ss://`, `trojan://`, `hysteria2://`, `tuic://`, `anytls://` or `naive+https://` link, a WireGuard `.conf` or sing-box JSON, or run the included installer on a fresh VPS.
+- **Updates itself.** Signed updates download in the background and install only when you choose *Restart to update*.
+- **Light and calm.** Ready about 120 ms after launch, about 5 MB in the tray, and animations you can set to Full, Less or None.
+
+## LOTUS and SHADOW compared
 
 | | **LOTUS** · private DNS | **SHADOW** · your own VPN |
 |---|---|---|
@@ -35,52 +72,6 @@ No account, no subscription, no telemetry, and no LOTUS servers in the middle. Y
 | **You choose** | Resolver, protocol, tracker and malware blocking | What goes through the server, and which apps and sites skip it |
 
 LOTUS mode can't hide your IP address. Only relaying your traffic through another machine can, and that's what SHADOW does. More in [LOTUS vs SHADOW](docs/MODES.md).
-
-## Screenshots
-
-<table>
-  <tr>
-    <td align="center" width="25%"><img src="docs/screenshots/lotus-off.png" alt="LOTUS mode, off"><br><sub>LOTUS, ready</sub></td>
-    <td align="center" width="25%"><img src="docs/screenshots/lotus-on.png" alt="LOTUS mode on: DNS data secured, session time and lookup time"><br><sub>LOTUS, protected</sub></td>
-    <td align="center" width="25%"><img src="docs/screenshots/shadow-off.png" alt="SHADOW mode, off"><br><sub>SHADOW, ready</sub></td>
-    <td align="center" width="25%"><img src="docs/screenshots/shadow-on.png" alt="SHADOW mode on: data secured, session time, latency and exit IP"><br><sub>SHADOW, connected</sub></td>
-  </tr>
-  <tr>
-    <td align="center"><img src="docs/screenshots/connection.png" alt="Connection settings: send traffic and DNS, traffic only, or DNS only through your server"><br><sub>Choose what goes through your server</sub></td>
-    <td align="center"><img src="docs/screenshots/split.png" alt="Split tunnelling: excluded apps and sites, with apps open now to add"><br><sub>Split tunnelling</sub></td>
-    <td align="center"><img src="docs/screenshots/console.png" alt="Live console: server check and live connections"><br><sub>Live console</sub></td>
-    <td align="center"><img src="docs/screenshots/usage.png" alt="Usage history: data per day this month and per server"><br><sub>Usage history</sub></td>
-  </tr>
-</table>
-
-## Features
-
-**Protection**
-
-- **Honest status.** SHADOW says *Connected* only after a real handshake with your server and a test request through Windows' own routing that came back from your server's address. LOTUS says *Protected* only once the encrypted resolver has actually answered.
-- **A kill switch that survives crashes.** Windows Filtering Platform rules let only the tunnel through. In testing, killing the engine or the LOTUS service leaked nothing, and the connection came back by itself.
-- **Secure by default.** There is no "allow insecure" option. Links that turn off certificate checks or use unencrypted or outdated protocols are refused, with an explanation.
-- **Private by design.** No accounts and no analytics. Engine logs stay in memory, with addresses removed. Saved servers are encrypted with your Windows account.
-
-**Control**
-
-- **Choose what goes through your server.** Everything, traffic only (lookups go straight to the encrypted resolver, which is faster), or DNS only.
-- **Split tunnelling.** Exclude apps and sites from the tunnel, or send only the ones you list. Pick apps from the ones open now. Games and calls you exclude keep full speed.
-- **Switch without dropping out.** Choosing the other mode leaves your connection on until you press the switch. If the new mode or server can't connect, the previous one comes straight back. Settings changed while connected apply at once, and are undone if they would leave you offline.
-- **Bring your own server.** Paste a `vless://`, `ss://`, `trojan://`, `hysteria2://`, `tuic://`, `anytls://` or `naive+https://` link, a WireGuard `.conf` or sing-box JSON. Or run the included installer on a fresh VPS and paste the `lotus://` link it prints.
-
-**Insight**
-
-- **Live session stats.** Data secured, time connected and latency, for both modes. In SHADOW with a split tunnel, only what actually used the tunnel is counted.
-- **Live console.** Checks your server (an authenticated handshake, plus what a stranger probing it sees), graphs throughput, and lists every open connection and whether it uses the tunnel.
-- **Usage history.** Data and time per day, month or year, per server and for LOTUS mode. Only totals are kept, never the sites you visit, and only on your PC. Turn it off or clear it at any time.
-- **Privacy check.** One click tests for DNS leaks, IPv6 leaks, routing and the kill switch.
-
-**Everyday**
-
-- **Calm and quick.** Ready about 120 ms after launch, and the window does no drawing while nothing changes. Animations can be Full, Less (short, smooth fades with no bouncing) or None.
-- **Updates itself.** LOTUS checks for new releases every few hours and downloads them in the background. Updates are signed and install only when you choose *Restart to update*.
-- **Light.** The background service uses about 17 MB, and the networking engine 41–66 MB while on (nothing when off). With the window closed, LOTUS idles at about 5 MB.
 
 ## How it works
 
