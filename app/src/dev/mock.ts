@@ -60,40 +60,53 @@ function push(patch: Partial<Status>) {
   void emit("lotus://status", status);
 }
 
+/** Optional preset for screenshots: set window.__LOTUS_MOCK__ before the app loads. */
+interface Preset {
+  mode?: AppSettings["mode"];
+  connected?: boolean;
+  sessionAgeMs?: number;
+  upTotal?: number;
+  downTotal?: number;
+}
+
 function connect() {
+  push({ state: "connecting", mode: settings.mode, error: null });
+  window.setTimeout(() => goLive(0), 1300);
+}
+
+function goLive(ageMs: number) {
   const mode = settings.mode;
   const p = profiles.find((x) => x.id === settings.selected_profile);
-  push({ state: "connecting", mode, error: null });
-  window.setTimeout(() => {
+  push({
+    state: "connected",
+    mode,
+    error: null,
+    connected_since: Date.now() - ageMs,
+    profile_id: mode === "shadow" ? p?.id ?? null : null,
+    profile_name: mode === "shadow" ? p?.name ?? null : null,
+    protocol_label: mode === "shadow" ? "VLESS · REALITY" : null,
+    exit: mode === "shadow" ? { ipv4: "203.0.113.10", ipv6: null, country: "DE", colo: "FRA" } : { ipv4: "192.0.2.44", ipv6: null, country: "US", colo: null },
+    latency_ms: mode === "shadow" ? 38 : null,
+    protections:
+      mode === "lotus"
+        ? [
+            { id: "encrypted_dns", label: "Encrypted DNS", detail: "Cloudflare · DNS-over-HTTPS", active: true },
+            { id: "dns_leak", label: "DNS leak protection", detail: "All adapters use LOTUS", active: true },
+            { id: "trackers", label: "Tracker blocking", detail: "Known ad & tracking domains", active: settings.lotus.block_trackers },
+            { id: "malware", label: "Malicious-domain filter", detail: "Off", active: false },
+          ]
+        : [],
+  });
+  window.clearInterval(ticker);
+  ticker = window.setInterval(() => {
+    if (status.mode !== "shadow") return;
+    const up = Math.round(4_000 + Math.random() * 40_000);
+    const down = Math.round(60_000 + Math.random() * 2_400_000);
     push({
-      state: "connected",
-      connected_since: Date.now(),
-      profile_id: mode === "shadow" ? p?.id ?? null : null,
-      profile_name: mode === "shadow" ? p?.name ?? null : null,
-      protocol_label: mode === "shadow" ? "VLESS · REALITY" : null,
-      exit: mode === "shadow" ? { ipv4: "203.0.113.10", ipv6: null, country: "DE", colo: "FRA" } : { ipv4: "192.0.2.44", ipv6: null, country: "US", colo: null },
-      latency_ms: mode === "shadow" ? 38 : null,
-      protections:
-        mode === "lotus"
-          ? [
-              { id: "encrypted_dns", label: "Encrypted DNS", detail: "Cloudflare · DNS-over-HTTPS", active: true },
-              { id: "dns_leak", label: "DNS leak protection", detail: "All adapters use LOTUS", active: true },
-              { id: "trackers", label: "Tracker blocking", detail: "Known ad & tracking domains", active: settings.lotus.block_trackers },
-              { id: "malware", label: "Malicious-domain filter", detail: "Off", active: false },
-            ]
-          : [],
+      latency_ms: 34 + Math.round(Math.random() * 8),
+      traffic: { up_rate: up, down_rate: down, up_total: status.traffic.up_total + up, down_total: status.traffic.down_total + down },
     });
-    window.clearInterval(ticker);
-    ticker = window.setInterval(() => {
-      if (status.mode !== "shadow") return;
-      const up = Math.round(4_000 + Math.random() * 40_000);
-      const down = Math.round(60_000 + Math.random() * 2_400_000);
-      push({
-        latency_ms: 34 + Math.round(Math.random() * 8),
-        traffic: { up_rate: up, down_rate: down, up_total: status.traffic.up_total + up, down_total: status.traffic.down_total + down },
-      });
-    }, 1000);
-  }, 1300);
+  }, 1000);
 }
 
 function disconnect() {
@@ -168,4 +181,10 @@ export async function installMock() {
     },
     { shouldMockEvents: true },
   );
+  const preset = ((window as unknown as { __LOTUS_MOCK__?: Preset }).__LOTUS_MOCK__ ?? {}) as Preset;
+  if (preset.mode) settings = { ...settings, mode: preset.mode };
+  if (preset.connected) {
+    status = { ...status, traffic: { up_rate: 0, down_rate: 0, up_total: preset.upTotal ?? 0, down_total: preset.downTotal ?? 0 } };
+    goLive(preset.sessionAgeMs ?? 0);
+  }
 }

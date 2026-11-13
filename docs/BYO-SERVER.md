@@ -18,7 +18,7 @@ The script lives at `server/lotus-server-install.sh`. In the app, use **Servers 
    ssh root@YOUR_SERVER_IP "bash lotus-server-install.sh"
    ```
    Add `--with-hysteria2` for a second, UDP-based profile. Add `--tune` to enable BBR without being asked.
-3. **Copy the `lotus://…` line** it prints at the end, then in LOTUS: **Add server → From clipboard**.
+3. **Copy the `lotus://…` line** it prints at the end, then in LOTUS: **Add server → Paste**.
 
 ### What it does
 
