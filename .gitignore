@@ -1,0 +1,18 @@
+# Build output
+/target/
+/app/dist/
+/app/node_modules/
+/app/src-tauri/gen/
+
+# Fetched and verified by scripts/fetch-engine.ps1 (pinned in vendor/LOCK)
+/app/src-tauri/binaries/*.exe
+/app/src-tauri/resources/libcronet.dll
+/app/src-tauri/resources/block-trackers.srs
+/app/src-tauri/resources/SING-BOX-LICENSE.txt
+
+# Generated intermediates
+/app/src-tauri/icons/tray-src/
+*.tmp
+
+# Local editor/tool configuration
+/.impeccable/

@@ -1,0 +1,10 @@
+* text=auto
+*.sh text eol=lf
+*.nsh text eol=crlf
+*.ps1 text eol=crlf
+*.png binary
+*.ico binary
+*.icns binary
+*.srs binary
+*.exe binary
+*.dll binary

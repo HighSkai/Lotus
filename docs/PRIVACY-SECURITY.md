@@ -1,0 +1,37 @@
+# Privacy and security
+
+## What LOTUS collects
+
+Nothing. There is no account, no analytics, no telemetry, no crash reporting, no update ping and no LOTUS server. LOTUS never records the sites you visit.
+
+- **Engine logs** run at *warning* level, so per-connection destinations aren't logged. Lines are kept **in memory only** (last 300). Server addresses, UUIDs, passwords, keys and IP addresses are redacted before they're stored. Nothing is written to disk.
+- **Network requests LOTUS itself makes:**
+  - `https://1.1.1.1/cdn-cgi/trace` (and its IPv6 twin): when connecting, to learn your direct IP (leak reference) and the exit IP and country. In SHADOW the second request travels through your tunnel.
+  - `http://cp.cloudflare.com/generate_204`: fetched *by your server* for latency checks (every 30 s while SHADOW is connected).
+  - The privacy check (only when you run it) queries `o-o.myaddr.l.google.com` (which reports the resolver's IP) and Team Cymru's DNS service (IP → network owner).
+  - The speed test (only when you run it) uses `speed.cloudflare.com`.
+- Your chosen DNS resolver sees your lookups (encrypted in transit), and in SHADOW your VPS provider sees where your traffic goes. Choose providers you trust.
+
+## Security model
+
+| Threat | Mitigation |
+|---|---|
+| ISP or Wi-Fi operator reading or modifying DNS | Encrypted DNS with full certificate validation; plaintext DNS to other servers blocked |
+| Apps bypassing system DNS | WFP blocks port 53/853 to non-loopback (LOTUS); TUN DNS hijack plus strict routing (SHADOW) |
+| Traffic leaking when the tunnel drops | Persistent WFP kill switch, armed before the engine starts, survives engine and service crashes (tested) |
+| IPv6 leaks | IPv6 routed into the TUN (or rejected); verified by the privacy check |
+| Claiming "connected" when it isn't | Connected only after a real handshake *and* a verified exit IP over OS routing |
+| Local malware abusing the SYSTEM service | Closed IPC command set, no raw engine config, no file paths, strict validation, pipe DACL without instance creation |
+| Tampered engine binary | Pinned SHA-256 checked before every start, with a write-deny lock held through process creation |
+| Active probing of your server | REALITY relays unauthenticated probes to the real camouflage site |
+| Stolen profiles file | DPAPI encryption bound to your Windows account |
+| Disabled certificate checks | There is no "insecure" option anywhere; links that request it are refused with an explanation |
+
+**Never done:** installing root certificates, TLS interception, HTTPS inspection, running scripts from imported configs (WireGuard `PostUp` and similar are refused), downloading code at runtime.
+
+## Limitations, stated plainly
+
+- LOTUS mode doesn't hide your IP or encrypt non-DNS traffic.
+- Obfuscation raises the cost of detection; it doesn't guarantee it. Traffic analysis (volume, timing, a single long-lived destination) can still reveal tunnel use.
+- The service runs as LocalSystem because WFP, TUN adapters and adapter DNS require it. Its surface is kept small (above). Running under a restricted service SID with only the needed privileges is planned hardening.
+- With "Allow local network" enabled, the kill switch still permits LAN destinations. Disable it on untrusted networks if that matters to you.

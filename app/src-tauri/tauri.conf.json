@@ -1,0 +1,69 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "LOTUS",
+  "mainBinaryName": "lotus",
+  "version": "1.0.0",
+  "identifier": "app.lotus.desktop",
+  "build": {
+    "beforeDevCommand": "npm run dev",
+    "devUrl": "http://127.0.0.1:1420",
+    "beforeBuildCommand": "npm run build",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "withGlobalTauri": false,
+    "windows": [
+      {
+        "label": "main",
+        "create": false,
+        "title": "LOTUS",
+        "width": 400,
+        "height": 600,
+        "minWidth": 360,
+        "minHeight": 560,
+        "maxWidth": 560,
+        "maxHeight": 900,
+        "resizable": true,
+        "maximizable": false,
+        "decorations": false,
+        "transparent": false,
+        "shadow": true,
+        "center": true,
+        "visible": false,
+        "backgroundColor": "#EEF2FC"
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; connect-src ipc: http://ipc.localhost; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'",
+      "freezePrototype": true,
+      "capabilities": ["main"]
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["nsis"],
+    "publisher": "LOTUS",
+    "copyright": "LOTUS contributors · GPL-3.0-or-later",
+    "homepage": "https://github.com/HighSkai/Lotus",
+    "category": "Utility",
+    "shortDescription": "Private DNS and bring-your-own-server VPN",
+    "longDescription": "LOTUS encrypts your DNS without changing your IP (LOTUS mode) or tunnels your whole device through your own server (SHADOW mode).",
+    "icon": ["icons/32x32.png", "icons/128x128.png", "icons/128x128@2x.png", "icons/icon.ico"],
+    "externalBin": ["binaries/sing-box", "binaries/lotus-service"],
+    "resources": {
+      "resources/libcronet.dll": "libcronet.dll",
+      "resources/block-trackers.srs": "rules/block-trackers.srs",
+      "resources/SING-BOX-LICENSE.txt": "licenses/SING-BOX-LICENSE.txt",
+      "../../THIRD_PARTY_NOTICES.md": "licenses/THIRD_PARTY_NOTICES.md"
+    },
+    "windows": {
+      "webviewInstallMode": { "type": "downloadBootstrapper", "silent": true },
+      "nsis": {
+        "installMode": "perMachine",
+        "installerHooks": "windows/hooks.nsh",
+        "displayLanguageSelector": false,
+        "installerIcon": "icons/icon.ico"
+      }
+    }
+  }
+}
