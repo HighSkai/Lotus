@@ -54,6 +54,8 @@ pub struct Inner {
     pub logs: LogSink,
     pub events: broadcast::Sender<SysEvent>,
     pub origin: Mutex<Origin>,
+    /// Per-profile result of the IPv6 egress probe (does the exit server have IPv6?).
+    pub server_ipv6: Mutex<std::collections::HashMap<String, bool>>,
     test_slots: Semaphore,
 }
 
@@ -83,6 +85,7 @@ impl Controller {
             logs: LogSink::default(),
             events,
             origin: Mutex::new(Origin::default()),
+            server_ipv6: Mutex::new(Default::default()),
             test_slots: Semaphore::new(2),
         })))
     }

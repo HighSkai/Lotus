@@ -29,6 +29,12 @@ The public key, short ID or camouflage SNI doesn't match the server. Re-import t
 ### SHADOW: "Traffic was still leaving through your normal connection"
 Another VPN or filter driver is overriding routes. Disconnect other VPNs and retry.
 
+### SHADOW: connected, but sites fail with ERR_CONNECTION_CLOSED
+Your server probably has no IPv6 (Google Cloud VMs don't by default). Update to LOTUS 1.0.2 or later: it detects this and blocks IPv6 cleanly so apps use IPv4. On older versions, set **Settings → Connection → IPv6 → Off**. You don't need an *egress* firewall rule: cloud providers allow outbound traffic by default.
+
+### SHADOW: a server on my home network says "couldn't reach the server"
+If the link shows your home's public IP, your router has to forward the port (TCP 443) to that machine, and most routers can't loop a connection from inside the home back to their own public IP. Inside the home, use the machine's local address (e.g. `192.168.x.x`). Note a home server doesn't change your IP while you're at home; for a different exit IP, use a VPS.
+
 ### SHADOW: no internet while "Reconnecting…"
 That's the kill switch protecting you while the tunnel is down. Turn SHADOW off to restore normal access, or turn off the kill switch in Settings.
 

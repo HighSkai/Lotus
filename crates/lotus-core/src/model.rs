@@ -411,7 +411,8 @@ impl Default for LotusOptions {
 #[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum Ipv6Mode {
-    /// Route IPv6 through the tunnel; if the server has no IPv6 it is unreachable, never leaked.
+    /// Tunnel IPv6 when the exit server has IPv6 connectivity (detected on
+    /// connect); otherwise block it so apps fall back to IPv4. Never leaked.
     #[default]
     Tunnel,
     /// Refuse IPv6 entirely (AAAA answers suppressed, IPv6 packets rejected).

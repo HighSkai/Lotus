@@ -7,7 +7,7 @@ Nothing. There is no account, no analytics, no telemetry, no crash reporting, no
 - **Engine logs** run at *warning* level, so per-connection destinations aren't logged. Lines are kept **in memory only** (last 300). Server addresses, UUIDs, passwords, keys and IP addresses are redacted before they're stored. Nothing is written to disk.
 - **Network requests LOTUS itself makes:**
   - `https://1.1.1.1/cdn-cgi/trace` (and its IPv6 twin): when connecting, to learn your direct IP (leak reference) and the exit IP and country. In SHADOW the second request travels through your tunnel.
-  - `http://cp.cloudflare.com/generate_204`: fetched *by your server* for latency checks (every 30 s while SHADOW is connected).
+  - `https://1.1.1.1/cdn-cgi/trace`: fetched *by your server* for latency and health checks (every 30 s while SHADOW is connected). When connecting to a server for the first time, its IPv6 twin is fetched once to learn whether the server has IPv6.
   - The privacy check (only when you run it) queries `o-o.myaddr.l.google.com` (which reports the resolver's IP) and Team Cymru's DNS service (IP → network owner).
   - The speed test (only when you run it) uses `speed.cloudflare.com`.
 - Your chosen DNS resolver sees your lookups (encrypted in transit), and in SHADOW your VPS provider sees where your traffic goes. Choose providers you trust.

@@ -10,8 +10,16 @@ use std::time::{Duration, Instant};
 
 pub const TRACE_V4: &str = "https://1.1.1.1/cdn-cgi/trace";
 pub const TRACE_V6: &str = "https://[2606:4700:4700::1111]/cdn-cgi/trace";
-/// URL fetched *by the exit server* for latency tests.
-pub const DELAY_URL: &str = "http://cp.cloudflare.com/generate_204";
+/// URL fetched *by the exit server* for latency and health checks.
+///
+/// Must be HTTPS: through VLESS the engine's delay test reports success for a
+/// plain-HTTP URL even when the server never reached it (verified: an
+/// unroutable TEST-NET address "succeeded"). A TLS handshake with the real
+/// destination can't be faked, so HTTPS proves the server has working egress.
+pub const DELAY_URL: &str = "https://1.1.1.1/cdn-cgi/trace";
+/// IPv6-literal HTTPS URL fetched *by the exit server*: succeeds only if the
+/// server itself can reach the IPv6 internet.
+pub const IPV6_EGRESS_URL: &str = "https://[2606:4700:4700::1111]/cdn-cgi/trace";
 
 #[derive(Debug, Clone, Default)]
 pub struct Trace {

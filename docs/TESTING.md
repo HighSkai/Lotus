@@ -98,9 +98,20 @@ Note: sing-box itself (sing-tun) registers non-persistent *permit* filters for i
 | UI window open (WebView2, 6 processes) | ~240–330 MB private while visible |
 | Disconnected | no engine process at all |
 
+## Real servers (added in v1.0.2)
+
+| Setup | Result |
+|---|---|
+| Installer on a **Google Cloud Debian VM** (cloud firewall: TCP 443 ingress) | Installed and self-tested; SHADOW connected in ~1.4 s; websites see the VM's IP; Google, YouTube, Wikipedia, GitHub, Cloudflare load; ~170 Mbps download; privacy check 6/6 pass |
+| Installer on an **Arch Linux** laptop | Installed and running; REALITY handshake succeeded over the LAN |
+| Google Cloud VM **without IPv6** (the default) | v1.0.0/1.0.1 tunnelled IPv6 anyway, so IPv6-preferring apps failed with "connection closed". v1.0.2 detects the missing IPv6 and blocks it cleanly, so apps use IPv4 and nothing leaks |
+
+The delay test through VLESS was found to report success for **plain-HTTP** URLs even when the server can't reach them (an unroutable TEST-NET address "succeeded"). Health, latency and IPv6 probes now use HTTPS, which can't be faked.
+
 ## Not yet verified (needs external hardware or infrastructure)
 
-- **Exit-IP change through a remote VPS** and the server installer on a real Debian, Ubuntu or Arch Linux server. The installer is syntax-checked, its distribution detection was tested against the `os-release` values of Debian, Ubuntu, Arch, Manjaro and EndeavourOS (Fedora correctly rejected), and its link builder and Hysteria2 certificate/pin logic were exercised locally. Its apt/pacman, systemd and firewall paths weren't run.
+- The installer's Ubuntu path and the Hysteria2 option on a live server (Debian and Arch were run for real).
+- A home server reached through router port forwarding from outside the home network.
 - Wi-Fi ↔ Ethernet switching and sleep/resume on hardware (code paths: network-change notifications and the SCM power events → re-verify or reconnect).
 - Windows 10 (developed and tested on Windows 11).
 - NaiveProxy, TUIC, AnyTLS, Trojan, Shadowsocks and WireGuard against live servers. Their configs are validated by the engine, but no live handshake was done.

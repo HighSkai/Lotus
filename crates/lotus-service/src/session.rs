@@ -245,6 +245,8 @@ pub async fn run_shadow(inner: Arc<Inner>, profile: ServerProfile, opts: ShadowO
 struct Live {
     engine: Engine,
     traffic: tokio::task::JoinHandle<()>,
+    /// IPv6 is actually tunnelled (the server has IPv6); otherwise it is blocked cleanly.
+    ipv6: bool,
 }
 
 impl Live {
@@ -254,41 +256,71 @@ impl Live {
     }
 }
 
-fn shadow_protections(profile: &ServerProfile, opts: &ShadowOptions, inner: &Inner) -> Vec<Protection> {
+fn shadow_protections(profile: &ServerProfile, opts: &ShadowOptions, inner: &Inner, ipv6: bool) -> Vec<Protection> {
     let dns = providers::resolver_for(opts.dns_provider, DnsTransport::Doh, false).map(|r| r.name).unwrap_or_default();
+    let routing = match (ipv6, opts.ipv6) {
+        (true, _) => "All TCP and UDP traffic, IPv4 and IPv6",
+        (false, Ipv6Mode::Tunnel) => "All TCP and UDP traffic; IPv6 blocked (your server has no IPv6)",
+        (false, Ipv6Mode::Disable) => "All TCP and UDP traffic, IPv6 blocked",
+    };
     vec![
         Protection::new("tunnel", "Encrypted tunnel", profile.protocol.label(), true),
-        Protection::new(
-            "routing",
-            "Full-device routing",
-            if opts.ipv6 == Ipv6Mode::Tunnel { "All TCP and UDP traffic, IPv4 and IPv6" } else { "All TCP and UDP traffic, IPv6 blocked" },
-            true,
-        ),
+        Protection::new("routing", "Full-device routing", routing, true),
         Protection::new("dns", "DNS through tunnel", format!("{dns} DNS-over-HTTPS via your server"), true),
         Protection::new("kill_switch", "Kill switch", if opts.kill_switch { "Blocks traffic if the tunnel drops" } else { "Off" }, opts.kill_switch && inner.kill_switch_active()),
         Protection::new("trackers", "Tracker blocking", if opts.block_trackers { "Known ad & tracking domains" } else { "Off" }, opts.block_trackers),
     ]
 }
 
-async fn connect_once(inner: &Arc<Inner>, profile: &ServerProfile, opts: &ShadowOptions) -> Result<Live, ErrorInfo> {
+/// Start the engine with IPv6 tunnelled or blocked, and require a real
+/// handshake with the exit server. Returns the engine and the measured latency.
+async fn start_tunnel(inner: &Arc<Inner>, profile: &ServerProfile, opts: &ShadowOptions, ipv6: bool) -> Result<(Engine, u32), ErrorInfo> {
+    let mut eff = opts.clone();
+    eff.ipv6 = if ipv6 { Ipv6Mode::Tunnel } else { Ipv6Mode::Disable };
     let (port, secret) = engine::new_controller_endpoint().map_err(|e| fail("internal", e.to_string()))?;
     let ctx = EngineContext { clash_port: port, clash_secret: secret.clone(), tracker_ruleset: inner.paths.tracker_rules_str() };
-    let cfg = singbox::shadow_config(profile, opts, &ctx).map_err(|e| fail("invalid_profile", e))?;
+    let cfg = singbox::shadow_config(profile, &eff, &ctx).map_err(|e| fail("invalid_profile", e))?;
     let mut eng = inner.spawn_engine(&cfg, port, secret, Some(profile)).await?;
     if let Err(e) = eng.wait_ready(Duration::from_secs(12)).await {
         eng.stop().await;
         return Err(fail("engine", e.to_string()));
     }
-    // 1. The exit server accepts our handshake.
-    let latency = match eng.clash.delay(singbox::PROXY_TAG, probe::DELAY_URL, 8000).await {
-        Ok(ms) => ms,
+    match eng.clash.delay(singbox::PROXY_TAG, probe::DELAY_URL, 8000).await {
+        Ok(ms) => Ok((eng, ms)),
         Err(e) => {
             tokio::time::sleep(Duration::from_millis(200)).await;
             let msg = crate::explain::outbound_failure(&e.to_string(), &eng.recent_logs());
             eng.stop().await;
-            return Err(fail("server_unreachable", msg));
+            Err(fail("server_unreachable", msg))
         }
-    };
+    }
+}
+
+async fn connect_once(inner: &Arc<Inner>, profile: &ServerProfile, opts: &ShadowOptions) -> Result<Live, ErrorInfo> {
+    // 1. The exit server accepts our handshake.
+    //
+    // IPv6 is only tunnelled when the server itself can reach the IPv6
+    // internet. Many VPS images (e.g. Google Cloud by default) have no IPv6;
+    // tunnelling it there makes apps that prefer IPv6 fail with "connection
+    // closed" instead of falling back to IPv4. Until a server is known to
+    // have IPv6, start with IPv6 blocked (always safe, never leaks), test
+    // IPv6 egress through the server, and switch it on if it works.
+    let want_v6 = opts.ipv6 == Ipv6Mode::Tunnel;
+    let known = inner.server_ipv6.lock().unwrap().get(&profile.id).copied();
+    let mut ipv6 = want_v6 && known == Some(true);
+    let (mut eng, mut latency) = start_tunnel(inner, profile, opts, ipv6).await?;
+    if want_v6 && known.is_none() {
+        let has_v6 = eng.clash.delay(singbox::PROXY_TAG, probe::IPV6_EGRESS_URL, 5000).await.is_ok();
+        inner.server_ipv6.lock().unwrap().insert(profile.id.clone(), has_v6);
+        inner.log(if has_v6 { "exit server has IPv6; tunnelling IPv6" } else { "exit server has no IPv6; blocking IPv6 so apps use IPv4" });
+        if has_v6 {
+            eng.stop().await;
+            let (e, ms) = start_tunnel(inner, profile, opts, true).await?;
+            eng = e;
+            latency = ms;
+            ipv6 = true;
+        }
+    }
     // 2. Windows actually routes ordinary traffic through the tunnel.
     let mut trace = None;
     for _ in 0..3 {
@@ -347,7 +379,7 @@ async fn connect_once(inner: &Arc<Inner>, profile: &ServerProfile, opts: &Shadow
             tokio::time::sleep(Duration::from_secs(2)).await;
         }
     });
-    Ok(Live { engine: eng, traffic })
+    Ok(Live { engine: eng, traffic, ipv6 })
 }
 
 async fn shadow_session(inner: &Arc<Inner>, profile: &ServerProfile, opts: &ShadowOptions, cancel: &CancellationToken, resumed: bool) -> Result<(), ErrorInfo> {
@@ -388,8 +420,8 @@ async fn shadow_session(inner: &Arc<Inner>, profile: &ServerProfile, opts: &Shad
         resume_on_boot: opts.resume_on_boot,
     };
     inner.save_record(record);
-    if live.is_some() {
-        mark_connected(inner, profile, opts);
+    if let Some(l) = &live {
+        mark_connected(inner, profile, opts, l.ipv6);
     }
 
     let mut events = inner.events.subscribe();
@@ -400,9 +432,10 @@ async fn shadow_session(inner: &Arc<Inner>, profile: &ServerProfile, opts: &Shad
         if live.is_none() {
             match reconnect(inner, profile, opts, cancel).await {
                 Some(l) => {
+                    let v6 = l.ipv6;
                     live = Some(l);
                     failures = 0;
-                    mark_connected(inner, profile, opts);
+                    mark_connected(inner, profile, opts, v6);
                 }
                 None => return Ok(()), // cancelled
             }
@@ -493,8 +526,8 @@ async fn shadow_session(inner: &Arc<Inner>, profile: &ServerProfile, opts: &Shad
     }
 }
 
-fn mark_connected(inner: &Inner, profile: &ServerProfile, opts: &ShadowOptions) {
-    let prot = shadow_protections(profile, opts, inner);
+fn mark_connected(inner: &Inner, profile: &ServerProfile, opts: &ShadowOptions, ipv6: bool) {
+    let prot = shadow_protections(profile, opts, inner, ipv6);
     inner.update(|s| {
         s.state = ConnState::Connected;
         s.mode = Some(Mode::Shadow);

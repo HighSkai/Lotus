@@ -4,13 +4,13 @@
 
 ### Private DNS and a bring-your-own-server VPN for Windows
 
-[![Release](https://img.shields.io/badge/release-v1.0.1-6e7bff?style=flat-square)](https://github.com/HighSkai/Lotus/releases/latest)
+[![Release](https://img.shields.io/badge/release-v1.0.2-6e7bff?style=flat-square)](https://github.com/HighSkai/Lotus/releases/latest)
 [![Platform](https://img.shields.io/badge/platform-Windows%2010%20%7C%2011%20x64-0078D4?style=flat-square)](#install)
 [![License](https://img.shields.io/badge/license-GPL--3.0-b398ff?style=flat-square)](LICENSE)
 [![Engine](https://img.shields.io/badge/engine-sing--box%201.14.4-1a1e3a?style=flat-square)](https://github.com/SagerNet/sing-box)
 [![Built with](https://img.shields.io/badge/built%20with-Rust%20%C2%B7%20Tauri%202%20%C2%B7%20React-dea584?style=flat-square)](docs/ARCHITECTURE.md)
 
-[**Download**](https://github.com/HighSkai/Lotus/releases/latest) &nbsp;Â·&nbsp; [Set up your server](docs/BYO-SERVER.md) &nbsp;Â·&nbsp; [How it works](docs/ARCHITECTURE.md) &nbsp;Â·&nbsp; [Privacy](docs/PRIVACY-SECURITY.md) &nbsp;Â·&nbsp; [Test results](docs/TESTING.md)
+[**Download**](https://github.com/HighSkai/Lotus/releases/latest) &nbsp;Ã‚Â·&nbsp; [Set up your server](docs/BYO-SERVER.md) &nbsp;Ã‚Â·&nbsp; [How it works](docs/ARCHITECTURE.md) &nbsp;Ã‚Â·&nbsp; [Privacy](docs/PRIVACY-SECURITY.md) &nbsp;Ã‚Â·&nbsp; [Test results](docs/TESTING.md)
 
 </div>
 
@@ -22,7 +22,7 @@ There's no account, no subscription, no telemetry, and no central LOTUS infrastr
 
 ## Two modes, one switch
 
-| | ðŸŒ¸ **LOTUS**: private DNS | ðŸŒ‘ **SHADOW**: your own VPN |
+| | Ã°Å¸Å’Â¸ **LOTUS**: private DNS | Ã°Å¸Å’â€˜ **SHADOW**: your own VPN |
 |---|---|---|
 | **What it protects** | Every DNS lookup, from every app | All traffic from the device: TCP and UDP, IPv4 and IPv6 |
 | **Your public IP** | Unchanged (by design) | Your server's IP |
@@ -55,7 +55,7 @@ There's no account, no subscription, no telemetry, and no central LOTUS infrastr
 - **Bring your own server.** Paste a `vless://`, `ss://`, `trojan://`, `hysteria2://`, `tuic://`, `anytls://`, `naive+https://` link, a WireGuard `.conf` or sing-box JSON. Or run the included installer on a fresh VPS and paste the `lotus://` link it prints.
 - **Secure by default.** There is no "allow insecure" switch anywhere. Links that disable certificate checks, or use unencrypted or obsolete protocols, are refused with an explanation.
 - **Privacy by design.** No accounts or analytics. Engine logs stay in memory at warning level with addresses scrubbed. Server profiles are encrypted with your Windows account (DPAPI).
-- **Light.** The background service uses ~17 MB, and the networking engine ~41â€“66 MB while on (none when off). With the window closed, LOTUS releases its web view completely and idles at ~5 MB.
+- **Light.** The background service uses ~17 MB, and the networking engine ~41Ã¢â‚¬â€œ66 MB while on (none when off). With the window closed, LOTUS releases its web view completely and idles at ~5 MB.
 
 ## How it works
 
@@ -64,10 +64,10 @@ flowchart LR
   subgraph PC["Your PC"]
     UI["LOTUS app<br/>(unprivileged)"] -- "typed commands<br/>over a local pipe" --> SVC["LOTUS service<br/>(LocalSystem)"]
     SVC --> ENG["sing-box engine<br/>(SHA-256 verified)"]
-    SVC --> WFP["Windows Filtering Platform<br/>DNS guard Â· kill switch"]
+    SVC --> WFP["Windows Filtering Platform<br/>DNS guard Ã‚Â· kill switch"]
   end
-  ENG -- "LOTUS Â· DoH / DoH3 / DoT" --> DNS["Encrypted resolver<br/>Cloudflare Â· Quad9 Â· Mullvad Â· AdGuard"]
-  ENG -- "SHADOW Â· VLESS + REALITY + Vision<br/>or Hysteria2 (QUIC)" --> VPS["Your VPS<br/>exit IP"]
+  ENG -- "LOTUS Ã‚Â· DoH / DoH3 / DoT" --> DNS["Encrypted resolver<br/>Cloudflare Ã‚Â· Quad9 Ã‚Â· Mullvad Ã‚Â· AdGuard"]
+  ENG -- "SHADOW Ã‚Â· VLESS + REALITY + Vision<br/>or Hysteria2 (QUIC)" --> VPS["Your VPS<br/>exit IP"]
   VPS --> NET(("Internet"))
 ```
 
@@ -75,14 +75,14 @@ The window you click on has **no privileges**. A small Windows service does the 
 
 ## Install
 
-1. Download **`LOTUS_1.0.1_x64-setup.exe`** from the [latest release](https://github.com/HighSkai/Lotus/releases/latest) and approve the administrator prompt.
+1. Download **`LOTUS_1.0.2_x64-setup.exe`** from the [latest release](https://github.com/HighSkai/Lotus/releases/latest) and approve the administrator prompt.
 2. Open LOTUS, choose **LOTUS** or **SHADOW** at the top, and press the switch.
 
 Requirements: Windows 10 or 11 (x64). WebView2 ships with Windows 11 and is installed automatically if missing.
 
-> **Note:** the installer isn't code-signed yet, so SmartScreen may say *"Windows protected your PC"*. Choose **More info â†’ Run anyway** after checking the SHA-256 published with the release.
+> **Note:** the installer isn't code-signed yet, so SmartScreen may say *"Windows protected your PC"*. Choose **More info Ã¢â€ â€™ Run anyway** after checking the SHA-256 published with the release.
 
-Uninstalling (Settings â†’ Apps â†’ LOTUS) stops the service, restores your original DNS settings and removes every LOTUS firewall rule.
+Uninstalling (Settings Ã¢â€ â€™ Apps Ã¢â€ â€™ LOTUS) stops the service, restores your original DNS settings and removes every LOTUS firewall rule.
 
 ## Set up your own server (SHADOW)
 
@@ -101,7 +101,7 @@ curl -fsSLO https://github.com/HighSkai/Lotus/releases/latest/download/lotus-ser
 sudo bash lotus-server-install.sh                 # add --with-hysteria2 for a UDP/QUIC profile too
 ```
 
-The script verifies the sing-box download against a pinned SHA-256, generates REALITY keys, installs a hardened systemd service, **asks** before opening ports (it never overwrites existing firewall rules), and checks the result with a real handshake before printing your `lotus://` link. Paste the link into **LOTUS â†’ Add server â†’ From clipboard**. Remove everything with `--uninstall`. Full guide: [BYO-SERVER.md](docs/BYO-SERVER.md).
+The script verifies the sing-box download against a pinned SHA-256, generates REALITY keys, installs a hardened systemd service, **asks** before opening ports (it never overwrites existing firewall rules), and checks the result with a real handshake before printing your `lotus://` link. Paste the link into **LOTUS Ã¢â€ â€™ Add server Ã¢â€ â€™ From clipboard**. Remove everything with `--uninstall`. Full guide: [BYO-SERVER.md](docs/BYO-SERVER.md).
 
 ## Why VLESS + REALITY + Vision?
 
@@ -122,17 +122,17 @@ Every claim above was checked on a real Windows 11 PC with Windows' own tools. A
 
 | Check | Result |
 |---|---|
-| LOTUS: lookups answered by the encrypted resolver, not the ISP | âœ… |
-| LOTUS: apps with hard-coded DNS (8.8.8.8:53) blocked | âœ… |
-| SHADOW: all IPv4/IPv6 routes via the tunnel, TCP + UDP | âœ… |
-| Kill switch: deliberate bypass attempt blocked | âœ… |
+| LOTUS: lookups answered by the encrypted resolver, not the ISP | Ã¢Å“â€¦ |
+| LOTUS: apps with hard-coded DNS (8.8.8.8:53) blocked | Ã¢Å“â€¦ |
+| SHADOW: all IPv4/IPv6 routes via the tunnel, TCP + UDP | Ã¢Å“â€¦ |
+| Kill switch: deliberate bypass attempt blocked | Ã¢Å“â€¦ |
 | Engine killed mid-session: leak / recovery | none / ~2 s |
 | Service killed mid-session: leak / recovery | none / ~5 s |
 | Connect time (incl. verification) | ~1.9 s |
-| Throughput through the tunnel vs direct | ~0.5â€“1.2 Gbps vs ~0.7â€“1.25 Gbps |
-| Uninstall while active: DNS restored, no rules left | âœ… |
+| Throughput through the tunnel vs direct | ~0.5Ã¢â‚¬â€œ1.2 Gbps vs ~0.7Ã¢â‚¬â€œ1.25 Gbps |
+| Uninstall while active: DNS restored, no rules left | Ã¢Å“â€¦ |
 
-What *hasn't* been verified yet (a remote VPS exit, Wi-Fi/sleep transitions, Windows 10) is listed honestly in [TESTING.md](docs/TESTING.md).
+Real servers too: a Google Cloud Debian VM (exit IP changed, 6/6 privacy checks pass) and an Arch Linux machine. What *hasn't* been verified yet is listed honestly in [TESTING.md](docs/TESTING.md).
 
 ## Build from source
 
