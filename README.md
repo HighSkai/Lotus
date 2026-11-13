@@ -16,44 +16,79 @@
 
 ---
 
-LOTUS is a small desktop app with one switch and two ways to protect you:
+LOTUS is a small Windows app with one switch and two ways to protect you. No account, no subscription, no telemetry, and no LOTUS servers in the middle: you pick the resolver, and you run the server.
 
-- **LOTUS mode** encrypts every DNS lookup on your PC. Your IP address stays the same.
-- **SHADOW mode** sends your traffic through an encrypted tunnel to a server you own, so websites see your server instead of you.
+<img src="docs/assets/features/tile-modes.webp" align="right" width="400" alt="The switch in both modes. LOTUS, protected: 374 KB secured, 12:36 connected, 12 ms. SHADOW, connected: 1.35 GB secured, 18:25 connected, 41 ms.">
 
-No account, no subscription, no telemetry, and no LOTUS servers in the middle. You pick the resolver and you run the server.
+### One switch, two modes
 
-<br>
+**LOTUS** encrypts every DNS lookup on your PC, from every app. Your IP address stays the same, and nothing else changes.
 
-<p align="center"><img src="docs/assets/features/feature-modes.webp" width="100%" alt="One switch, two modes. LOTUS, shown protected with 374 KB secured: encrypts every DNS lookup, and your IP address stays the same. SHADOW, shown connected with 1.35 GB secured: sends everything through a server you own."></p>
+**SHADOW** sends all your traffic through an encrypted tunnel to a server you own, so websites see your server instead of you.
 
-<br>
+Under the switch, each mode shows what it has secured, how long it has been on, and its latency.
 
-<p align="center"><img src="docs/assets/features/feature-routing.webp" width="100%" alt="Choose what goes through your server: traffic and DNS, traffic only for faster lookups, or DNS only. Change it while connected; if it can't connect, your previous setting comes back."></p>
+<br clear="right">
 
-<br>
+<img src="docs/assets/features/tile-routing.webp" align="left" width="330" alt="Connection settings: send traffic and DNS, traffic only, or DNS only through your server.">
 
-<p align="center"><img src="docs/assets/features/feature-split.webp" width="100%" alt="Split tunnelling: keep games and streaming on your normal connection, or send only the apps and sites you pick through the tunnel. Shown excluding Discord, Steam and netflix.com, with apps open now ready to add."></p>
+### Choose what goes through your server
 
-<br>
+- **Traffic and DNS:** everything takes the tunnel. The default.
+- **Traffic only:** lookups go straight to your encrypted resolver, which is faster.
+- **DNS only:** just your lookups go through the server; websites still see your own IP.
 
-<p align="center"><img src="docs/assets/features/feature-console.webp" width="100%" alt="Watch your server at work: the live console shows the server, exit address, latency, open connections and live throughput, with a one-click check that it is really your server."></p>
+Change it while connected and it applies at once. If the new setting can't connect, the previous one comes straight back.
 
-<br>
+<br clear="left">
 
-<p align="center"><img src="docs/assets/features/feature-privacy.webp" width="100%" alt="Check for leaks in one click: the privacy check tests which resolver answers, the IPv4 and IPv6 exits, routing and the kill switch, and explains every result."></p>
+<img src="docs/assets/features/tile-split.webp" align="right" width="330" alt="Split tunnelling set to Exclude, with Discord and Steam listed, and apps that are open now ready to add.">
 
-<br>
+### Split tunnelling
 
-<p align="center"><img src="docs/assets/features/feature-usage.webp" width="100%" alt="Usage that stays on your PC: data and time by day, month or year, per server and for LOTUS. Only totals are kept, never the sites you visit."></p>
+Keep games, calls and streaming on your normal connection while everything else uses the tunnel. Or flip it around and send **only** the apps and sites you choose.
 
-<br>
+Pick apps from the ones open now, or type a name like `discord.exe`. Sites can be a domain (subdomains included), an IP address or a range.
+
+Excluded traffic keeps full speed, and *data secured* counts only what actually used the tunnel.
+
+<br clear="right">
+
+<img src="docs/assets/features/tile-console.webp" align="left" width="330" alt="Live console: server name, protocol, exit address, latency, open connections and a live throughput graph, with a Verify server button.">
+
+### Watch your server at work
+
+The live console shows your exit address, latency, open connections and live throughput, and lists every connection with whether it uses the tunnel.
+
+**Verify server** proves it's really your server (an authenticated handshake) and shows what a stranger probing it would see. With REALITY, that's the camouflage site's real certificate.
+
+<br clear="left">
+
+<img src="docs/assets/features/tile-privacy.webp" align="right" width="330" alt="Privacy check results: DNS resolver encrypted, IPv4 exit, IPv6 blocked, hard-coded DNS.">
+
+### Check for leaks in one click
+
+The privacy check asks which resolver really answers your lookups, where your IPv4 and IPv6 traffic leaves, whether Windows routes everything through the tunnel, and whether the kill switch is armed.
+
+Every result comes with a plain explanation, so a warning tells you what to do about it.
+
+<br clear="right">
+
+<img src="docs/assets/features/tile-usage.webp" align="left" width="330" alt="Usage history: data per day this month, and totals per server and for LOTUS.">
+
+### Usage that stays on your PC
+
+See data and time by day, month or year, for each server and for LOTUS mode.
+
+Only totals are kept, never the sites you visit, and only on your PC. Turn it off or clear it at any time.
+
+<br clear="left">
 
 ## Also built in
 
 - **Honest status.** SHADOW says *Connected* only after a real handshake with your server and a test request through Windows' own routing came back from your server's address. LOTUS says *Protected* only once the encrypted resolver has answered.
 - **A kill switch that survives crashes.** Windows Filtering Platform rules let only the tunnel through. In testing, killing the engine or the LOTUS service leaked nothing, and the connection came back by itself.
-- **Switch without dropping out.** Choosing the other mode leaves your connection on until you press the switch. If the new mode or server can't connect, the previous one comes straight back.
+- **Switch without dropping out.** Choosing the other mode leaves your connection on until you press the switch.
 - **Secure by default.** There is no "allow insecure" option. Links that turn off certificate checks or use unencrypted or outdated protocols are refused, with an explanation.
 - **Private by design.** No accounts and no analytics. Engine logs stay in memory with addresses removed, and saved servers are encrypted with your Windows account.
 - **Bring your own server.** Paste a `vless://`, `ss://`, `trojan://`, `hysteria2://`, `tuic://`, `anytls://` or `naive+https://` link, a WireGuard `.conf` or sing-box JSON, or run the included installer on a fresh VPS.
