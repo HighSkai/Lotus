@@ -444,7 +444,6 @@ export function ServerEditor({ nav, id }: { nav: Nav; id?: string }) {
               </div>
             </>
           )}
-          <Hint className="px-0.5">Certificates are always verified.</Hint>
         </Card>
       </Advanced>
     </Page>

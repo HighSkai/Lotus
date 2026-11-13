@@ -9,7 +9,7 @@ const buttonVariants = cva(
     variants: {
       variant: {
         default:
-          "bg-linear-120 from-btn-a to-btn-b text-white shadow-[inset_0_1px_0_rgb(255_255_255/0.3),0_8px_20px_-10px_var(--glow)] hover:brightness-[1.06]",
+          "bg-btn-a text-white shadow-[inset_0_1px_0_rgb(255_255_255/0.18)] hover:brightness-110",
         secondary: "glass-strong text-foreground",
         outline: "border-input bg-transparent text-foreground hover:bg-fill",
         ghost: "text-muted-foreground hover:bg-fill hover:text-foreground aria-expanded:bg-fill",

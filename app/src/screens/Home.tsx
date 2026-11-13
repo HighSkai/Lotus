@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
-import { ArrowDown, ArrowUp, Globe, Lock, Server, Shield, ShieldCheck, SquareTerminal, TriangleAlert, Wrench } from "lucide-react";
-import { NavRow, Notice, Pill, SettingRow } from "@/components/Controls";
+import { ArrowDown, ArrowUp, Shield, ShieldCheck, TriangleAlert, Wrench } from "lucide-react";
+import { NavRow, Notice, SettingRow } from "@/components/Controls";
 import { PowerSwitch, type Visual } from "@/components/PowerSwitch";
 import { SessionStats } from "@/components/SessionStats";
 import { Button } from "@/components/ui/button";
@@ -106,14 +106,14 @@ export function Home({ nav }: { nav: Nav }) {
     <div className="flex h-full flex-col px-4 pb-3">
       <section className="flex min-h-[236px] flex-1 flex-col items-center justify-center gap-4">
         <div className="grid h-8 place-items-center" aria-live="polite">
-          <AnimatePresence mode="popLayout" initial={false}>
+          <AnimatePresence initial={false}>
             <motion.h2
               key={`${mode}-${label}`}
-              initial={{ opacity: 0, y: 8, filter: "blur(6px)" }}
-              animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
-              exit={{ opacity: 0, y: -8, filter: "blur(6px)" }}
-              transition={{ duration: 0.22, ease: easeOut }}
-              className="m-0 text-[24px] font-semibold tracking-[-0.025em]"
+              initial={{ opacity: 0, y: 6 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -6 }}
+              transition={{ duration: 0.14, ease: easeOut }}
+              className="m-0 text-[24px] font-semibold tracking-[-0.025em] [grid-area:1/1]"
             >
               {label}
             </motion.h2>
@@ -126,15 +126,14 @@ export function Home({ nav }: { nav: Nav }) {
       <AnimatePresence mode="wait" initial={false}>
         <motion.div
           key={!service.connected ? "down" : mode}
-          initial={{ opacity: 0, y: 8 }}
+          initial={{ opacity: 0, y: 6 }}
           animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: -4 }}
-          transition={{ duration: 0.2, ease: easeOut }}
+          exit={{ opacity: 0, y: -3 }}
+          transition={{ duration: 0.14, ease: easeOut }}
         >
           {!service.connected ? (
             <Notice icon={TriangleAlert}>
               <div className="font-semibold">{service.message ?? "Connecting to the LOTUS service…"}</div>
-              <div className="mt-0.5 text-muted-foreground">LOTUS needs its background service to change DNS and routing.</div>
               <Button
                 size="sm"
                 variant="secondary"
@@ -153,22 +152,25 @@ export function Home({ nav }: { nav: Nav }) {
             </Notice>
           ) : mode === "lotus" ? (
             <Card className="p-1">
-              <NavRow icon={Lock} kicker="Resolver" label={`${providerName} · ${TRANSPORT[settings.lotus.transport]}`} onClick={() => nav.push({ name: "dns" })} />
-              <NavRow icon={Shield} kicker="Blocking" label={blocking || "Off"} onClick={() => nav.push({ name: "dns" })} />
+              <NavRow label="Resolver" value={`${providerName} · ${TRANSPORT[settings.lotus.transport]}`} onClick={() => nav.push({ name: "dns" })} />
+              <NavRow label="Blocking" value={blocking || "Off"} onClick={() => nav.push({ name: "dns" })} />
             </Card>
           ) : (
             <Card className="p-1">
-              <NavRow
-                icon={Server}
-                kicker="Exit server"
-                label={selected?.name ?? "Add your server"}
-                value={selected ? live?.protocol_label ?? labelFor(selected.protocol.type) : undefined}
-                onClick={() => nav.push({ name: selected ? "servers" : "add-server" })}
-              />
-              <SettingRow icon={Globe} kicker="Exit IP" label={running && live?.exit?.ipv4 ? live.exit.ipv4 : "—"} mono={running && !!live?.exit?.ipv4}>
-                {running && live?.exit?.country && <Pill tone="accent">{country(live.exit.country)}</Pill>}
+              <NavRow label="Server" value={selected?.name ?? "Add a server"} onClick={() => nav.push({ name: selected ? "servers" : "add-server" })} />
+              <SettingRow label="Exit IP">
+                <span className="truncate">
+                  {running && live?.exit?.ipv4 ? (
+                    <>
+                      <span className="font-mono text-[12.5px] text-foreground tabular-nums">{live.exit.ipv4}</span>
+                      {live.exit.country && ` · ${country(live.exit.country)}`}
+                    </>
+                  ) : (
+                    "—"
+                  )}
+                </span>
               </SettingRow>
-              {selected && <NavRow icon={SquareTerminal} kicker="Live console" label="Traffic & server check" onClick={() => nav.push({ name: "console" })} />}
+              {selected && <NavRow label="Live console" onClick={() => nav.push({ name: "console" })} />}
             </Card>
           )}
         </motion.div>
@@ -183,9 +185,9 @@ export function Home({ nav }: { nav: Nav }) {
       <footer className="flex h-11 shrink-0 items-center justify-between gap-2 pt-2.5">
         {mode === "shadow" && running ? (
           live?.kill_switch_engaged && visual === "reconnecting" ? (
-            <Pill tone="warn">
-              <Shield /> Kill switch holding traffic
-            </Pill>
+            <span className="inline-flex items-center gap-1.5 pl-1 text-[12px] text-warn">
+              <Shield className="size-3.5" /> Kill switch holding traffic
+            </span>
           ) : (
             <div className="flex gap-3.5 pl-1 font-mono text-[11.5px] text-muted-foreground tabular-nums" aria-label="Current traffic">
               <span className="inline-flex min-w-[78px] items-center gap-1">
@@ -197,9 +199,9 @@ export function Home({ nav }: { nav: Nav }) {
             </div>
           )
         ) : mode === "shadow" && settings.shadow.kill_switch ? (
-          <Pill>
-            <Shield /> Kill switch on
-          </Pill>
+          <span className="inline-flex items-center gap-1.5 pl-1 text-[12px] text-muted-foreground">
+            <Shield className="size-3.5" /> Kill switch on
+          </span>
         ) : (
           <span />
         )}

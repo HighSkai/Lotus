@@ -33,7 +33,7 @@ window.addEventListener(
 
 async function start() {
   // Plain-browser UI preview (`npm run dev` outside Tauri) runs against fake data.
-  if (import.meta.env.DEV && !("__TAURI_INTERNALS__" in window)) await (await import("./dev/mock")).installMock();
+  if ((import.meta.env.DEV || import.meta.env.VITE_MOCK === "1") && !("__TAURI_INTERNALS__" in window)) await (await import("./dev/mock")).installMock();
   await init();
 }
 

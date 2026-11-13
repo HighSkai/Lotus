@@ -4,7 +4,7 @@
 
 ### Private DNS and a bring-your-own-server VPN for Windows
 
-[![Release](https://img.shields.io/badge/release-v1.3.0-6e7bff?style=flat-square)](https://github.com/HighSkai/Lotus/releases/latest)
+[![Release](https://img.shields.io/badge/release-v1.4.0-6e7bff?style=flat-square)](https://github.com/HighSkai/Lotus/releases/latest)
 [![Platform](https://img.shields.io/badge/platform-Windows%2010%20%7C%2011%20x64-0078D4?style=flat-square)](#install)
 [![License](https://img.shields.io/badge/license-GPL--3.0-b398ff?style=flat-square)](LICENSE)
 [![Engine](https://img.shields.io/badge/engine-sing--box%201.14.4-1a1e3a?style=flat-square)](https://github.com/SagerNet/sing-box)
@@ -22,14 +22,14 @@ There's no account, no subscription, no telemetry, and no central LOTUS infrastr
 
 ## Two modes, one switch
 
-| | 🌸 **LOTUS**: private DNS | 🌑 **SHADOW**: your own VPN |
+| | **LOTUS**: private DNS | **SHADOW**: your own VPN |
 |---|---|---|
 | **What it protects** | Every DNS lookup, from every app | All traffic from the device: TCP and UDP, IPv4 and IPv6 |
 | **Your public IP** | Unchanged (by design) | Your server's IP |
 | **Needs a server** | No | Yes, any Debian, Ubuntu or Arch Linux VPS (one-script setup) |
 | **Encryption** | DNS-over-HTTPS, DoH over HTTP/3, DNS-over-TLS | VLESS + REALITY + XTLS-Vision by default; Hysteria2, Trojan, Shadowsocks-2022, TUIC, AnyTLS, NaiveProxy, WireGuard |
 | **Leak protection** | Every adapter uses LOTUS; plaintext DNS to any other server is blocked | Full TUN routing, DNS through the tunnel, persistent kill switch |
-| **Extras** | Tracker blocking, malicious-domain filtering, custom resolvers | Live session stats (traffic secured, time, latency), exit IP and country, server tests |
+| **Extras** | Tracker blocking, malicious-domain filtering, custom resolvers, usage history | Live console (server check, open connections, throughput), session stats, usage history per server |
 
 > LOTUS mode can't hide your IP: that's only possible by relaying traffic through another machine, which is exactly what SHADOW does. Read more in [LOTUS vs SHADOW](docs/MODES.md).
 
@@ -44,14 +44,15 @@ There's no account, no subscription, no telemetry, and no central LOTUS infrastr
   <tr>
     <td align="center"><img src="docs/screenshots/shadow-off.png" width="240" alt="SHADOW mode, off"><br><sub>SHADOW: midnight theme</sub></td>
     <td align="center"><img src="docs/screenshots/console.png" width="240" alt="Live console with server verification and live connections"><br><sub>Live console: verify your server, watch traffic</sub></td>
-    <td align="center"><img src="docs/screenshots/settings.png" width="240" alt="Settings"><br><sub>Settings</sub></td>
+    <td align="center"><img src="docs/screenshots/usage.png" width="240" alt="Usage history: data per day this month and per server"><br><sub>Usage history, kept on your PC</sub></td>
   </tr>
 </table>
 
 ## Highlights
 
-- **Calm, glassy and quick.** Frosted-glass panels with a soft light that follows your pointer, springy animations that settle in about a quarter of a second, and live session stats under the switch. Drag the window from anywhere along the top.
+- **Calm and quick.** Glass panels, a soft light that follows your pointer, and motion that settles in about 200 ms. It's ready about 120 ms after launch, and while nothing changes the window draws nothing at all. Drag it from anywhere along the top.
 - **See it working.** The SHADOW live console verifies your server (an authenticated handshake, plus what a stranger probing it sees: for REALITY, the camouflage site's real certificate), graphs throughput, and lists every open connection and whether it goes through the tunnel.
+- **Usage history.** Data and time per day, month or year, per server. Only totals are kept, never the sites you visit, and only on your PC. Switch it off or clear it whenever you like.
 - **Keeps itself up to date.** LOTUS checks GitHub for new releases every few hours and downloads them in the background. Updates are signed, and install only when you press *Restart to update*. Protection pauses for a moment and resumes by itself. Or check by hand in **Settings → Updates**.
 - **Honest status.** SHADOW reports *Connected* only after a real handshake with your server **and** a request through Windows' own routing came back from your server's IP. LOTUS reports *Protected* only after the encrypted resolver actually answered.
 - **A kill switch that survives crashes.** Persistent Windows Filtering Platform rules allow only the tunnel. In testing, killing the engine *or the LOTUS service itself* leaked nothing, and the connection came back by itself.
@@ -78,7 +79,7 @@ The window you click on has **no privileges**. A small Windows service does the 
 
 ## Install
 
-1. Download **`LOTUS_1.3.0_x64-setup.exe`** from the [latest release](https://github.com/HighSkai/Lotus/releases/latest) and approve the administrator prompt.
+1. Download **`LOTUS_1.4.0_x64-setup.exe`** from the [latest release](https://github.com/HighSkai/Lotus/releases/latest) and approve the administrator prompt.
 2. Open LOTUS, choose **LOTUS** or **SHADOW** at the top, and press the switch.
 
 From 1.2.0 on, LOTUS updates itself (see **Settings → Updates**). Coming from 1.1.0 or earlier, install 1.2.0 once by hand.
@@ -123,21 +124,24 @@ Hysteria2 (QUIC, with Chrome-like handshake parroting and a pinned server key) i
 
 ## Verified, not assumed
 
-Every claim above was checked on a real Windows 11 PC with Windows' own tools. A few results:
+Every claim above was checked on a real Windows 11 PC with Windows' own tools and packet captures of the network card. A few results:
 
 | Check | Result |
 |---|---|
-| LOTUS: lookups answered by the encrypted resolver, not the ISP | ✅ |
-| LOTUS: apps with hard-coded DNS (8.8.8.8:53) blocked | ✅ |
-| SHADOW: all IPv4/IPv6 routes via the tunnel, TCP + UDP | ✅ |
-| Kill switch: deliberate bypass attempt blocked | ✅ |
+| LOTUS: each of the 5 resolvers answers when selected, over DoH, DoH3 or DoT, TLS 1.3 | Pass (16 of 16 combinations) |
+| LOTUS: plaintext DNS on the wire while on | None (0 of 1,338 packets) |
+| LOTUS: apps with hard-coded DNS (8.8.8.8:53) blocked | Pass |
+| SHADOW: share of bytes on the network card going to your server | 99.7%; 0 packets anywhere else |
+| SHADOW: an unencrypted web request, readable without LOTUS | Not visible on the wire; still arrives from the server |
+| SHADOW: all IPv4/IPv6 routes via the tunnel, TCP + UDP | Pass |
+| Kill switch: deliberate bypass attempt (IPv4 and IPv6) | Blocked |
 | Engine killed mid-session: leak / recovery | none / ~2 s |
 | Service killed mid-session: leak / recovery | none / ~5 s |
 | Connect time (incl. verification) | ~1.9 s |
 | Throughput through the tunnel vs direct | ~0.5–1.2 Gbps vs ~0.7–1.25 Gbps |
-| Uninstall while active: DNS restored, no rules left | ✅ |
+| Uninstall while active: DNS restored, no rules left | Pass |
 
-Real servers too: a Google Cloud Debian VM (exit IP changed, 6/6 privacy checks pass) and an Arch Linux machine. What *hasn't* been verified yet is listed honestly in [TESTING.md](docs/TESTING.md).
+Real servers too: a Google Cloud Debian VM (exit IP changed, 6/6 privacy checks pass, REALITY probed from outside shows only the camouflage site) and an Arch Linux machine. The full audit, interface performance numbers, and what *hasn't* been verified yet are in [TESTING.md](docs/TESTING.md).
 
 ## Build from source
 
@@ -164,7 +168,7 @@ cd app; npm install; npx tauri dev
 
 `cd app; npm run dev` on its own previews the interface in a browser at http://127.0.0.1:1420 with fake data, no service needed.
 
-`lotus-service ctl status | lotus | shadow <link> | test <link> | diag | speed | logs | disconnect` drives the service from a terminal.
+`lotus-service ctl status | lotus | shadow <link> | test <link> | verify <link> | connections | usage | diag | speed | logs | disconnect` drives the service from a terminal.
 </details>
 
 ## Project layout
@@ -172,7 +176,7 @@ cd app; npm install; npx tauri dev
 ```
 crates/lotus-core      profiles, importers, validation, engine config builders, IPC types (no OS calls)
 crates/lotus-service   privileged Windows service: engine supervisor, DNS, WFP firewall, named-pipe IPC
-app/                   Tauri 2 + React desktop app (unprivileged), tray, encrypted profile store
+app/                   Tauri 2 + React desktop app (unprivileged): tray, encrypted profile store, signed updater
 server/                exit-server installer (Debian, Ubuntu, Arch Linux)
 scripts/               pinned engine fetch, release build, dev install, failure-injection tests
 docs/                  documentation

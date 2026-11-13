@@ -1,8 +1,6 @@
-import { useId, useState, type ReactNode } from "react";
-import { motion } from "motion/react";
+import { useState, type ReactNode } from "react";
 import { ChevronLeft, ChevronRight, type LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { spring } from "@/lib/motion";
 import { startWindowDrag } from "@/lib/window";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -42,7 +40,7 @@ export function List({ title, hint, children, className }: { title?: string; hin
 }
 
 export function SectionTitle({ children }: { children: ReactNode }) {
-  return <div className="px-3 pt-1 pb-1.5 text-[11px] font-semibold tracking-[0.08em] text-faint uppercase">{children}</div>;
+  return <h2 className="m-0 px-3 pt-1 pb-1.5 text-[12.5px] font-medium text-muted-foreground">{children}</h2>;
 }
 
 export function Hint({ children, className }: { children: ReactNode; className?: string }) {
@@ -52,44 +50,39 @@ export function Hint({ children, className }: { children: ReactNode; className?:
 /* ---------- Rows -------------------------------------------------------- */
 
 const rowBase =
-  "relative flex w-full min-h-[50px] items-center gap-3 rounded-[18px] px-3 py-2 text-left not-first:before:absolute not-first:before:top-0 not-first:before:right-3 not-first:before:left-3 not-first:before:h-px not-first:before:bg-border";
+  "relative flex w-full min-h-[46px] items-center gap-3 rounded-[16px] px-3 py-2 text-left not-first:before:absolute not-first:before:top-0 not-first:before:right-3 not-first:before:left-3 not-first:before:h-px not-first:before:bg-border";
 
-export function Chip({ icon: I, className }: { icon: LucideIcon; className?: string }) {
-  return (
-    <span className={cn("grid size-[30px] shrink-0 place-items-center rounded-[10px] bg-primary/10 text-primary", className)}>
-      <I className="size-4" strokeWidth={1.9} />
-    </span>
-  );
+function RowIcon({ icon: I }: { icon?: LucideIcon }) {
+  return I ? <I className="size-[17px] shrink-0 text-muted-foreground" strokeWidth={1.8} aria-hidden="true" /> : null;
 }
 
-function RowText({ label, sub, kicker, mono }: { label: ReactNode; sub?: ReactNode; kicker?: ReactNode; mono?: boolean }) {
+function RowText({ label, sub, mono }: { label: ReactNode; sub?: ReactNode; mono?: boolean }) {
   return (
     <span className="flex min-w-0 flex-1 flex-col gap-px">
-      {kicker && <span className="text-[11.5px] text-faint">{kicker}</span>}
       <span className={cn("truncate text-[13.5px] font-medium", mono && "font-mono text-[12.5px] tabular-nums")}>{label}</span>
       {sub && <span className="text-[12px] leading-snug text-muted-foreground">{sub}</span>}
     </span>
   );
 }
 
-export function SettingRow({ icon, label, sub, kicker, mono, children }: { icon?: LucideIcon; label: ReactNode; sub?: ReactNode; kicker?: ReactNode; mono?: boolean; children?: ReactNode }) {
+export function SettingRow({ icon, label, sub, mono, children }: { icon?: LucideIcon; label: ReactNode; sub?: ReactNode; mono?: boolean; children?: ReactNode }) {
   return (
     <div className={rowBase}>
-      {icon && <Chip icon={icon} />}
-      <RowText label={label} sub={sub} kicker={kicker} mono={mono} />
-      {children && <span className="flex shrink-0 items-center gap-2 text-[12.5px] text-muted-foreground">{children}</span>}
+      <RowIcon icon={icon} />
+      <RowText label={label} sub={sub} mono={mono} />
+      {children && <span className="flex min-w-0 shrink-0 items-center gap-2 text-[12.5px] text-muted-foreground">{children}</span>}
     </div>
   );
 }
 
-export function NavRow({ icon, label, sub, kicker, value, onClick }: { icon: LucideIcon; label: ReactNode; sub?: ReactNode; kicker?: ReactNode; value?: ReactNode; onClick: () => void }) {
+export function NavRow({ icon, label, sub, value, onClick }: { icon?: LucideIcon; label: ReactNode; sub?: ReactNode; value?: ReactNode; onClick: () => void }) {
   return (
     <button type="button" data-spot className={cn(rowBase, "transition-colors active:bg-fill")} onClick={onClick}>
-      <Chip icon={icon} />
-      <RowText label={label} sub={sub} kicker={kicker} />
-      <span className="flex shrink-0 items-center gap-1 text-[12.5px] text-faint">
-        {value != null && <span className="max-w-[120px] truncate">{value}</span>}
-        <ChevronRight className="size-4" />
+      <RowIcon icon={icon} />
+      <RowText label={label} sub={sub} />
+      <span className="flex min-w-0 shrink items-center gap-1 text-[12.5px] text-muted-foreground">
+        {value != null && <span className="truncate">{value}</span>}
+        <ChevronRight className="size-4 shrink-0 text-faint" />
       </span>
     </button>
   );
@@ -98,7 +91,7 @@ export function NavRow({ icon, label, sub, kicker, value, onClick }: { icon: Luc
 export function ToggleRow({ icon, label, sub, checked, onChange, disabled }: { icon?: LucideIcon; label: string; sub?: ReactNode; checked: boolean; onChange: (v: boolean) => void; disabled?: boolean }) {
   return (
     <label data-spot className={cn(rowBase, disabled ? "cursor-default" : "cursor-pointer")}>
-      {icon && <Chip icon={icon} />}
+      <RowIcon icon={icon} />
       <RowText label={label} sub={sub} />
       <Switch checked={checked} onCheckedChange={onChange} disabled={disabled} aria-label={label} />
     </label>
@@ -120,20 +113,31 @@ export function RadioList<T extends string>({ value, onChange, options, label }:
 
 /* ---------- Controls ---------------------------------------------------- */
 
-/** Segmented control with a sliding glass pill. */
+/** Segmented control. Equal segments, so the selection pill slides with a plain transform. */
 export function Seg<T extends string>({ value, options, onChange, label, className }: { value: T; options: { value: T; label: string; disabled?: boolean }[]; onChange: (v: T) => void; label: string; className?: string }) {
-  const id = useId();
+  const index = Math.max(0, options.findIndex((o) => o.value === value));
   return (
-    <ToggleGroup type="single" spacing={0.5} value={value} onValueChange={(v) => v && onChange(v as T)} aria-label={label} className={cn("rounded-full bg-fill p-[3px]", className)}>
+    <ToggleGroup
+      type="single"
+      spacing={0.5}
+      value={value}
+      onValueChange={(v) => v && onChange(v as T)}
+      aria-label={label}
+      className={cn("relative grid auto-cols-fr grid-flow-col rounded-full bg-fill p-[3px]", className)}
+    >
+      <span
+        aria-hidden="true"
+        className="absolute top-[3px] bottom-[3px] left-[3px] rounded-full bg-white shadow-[0_1px_3px_rgb(0_0_0/0.1)] transition-transform duration-200 ease-out dark:bg-white/14"
+        style={{ width: `calc((100% - 6px) / ${options.length})`, transform: `translateX(${index * 100}%)` }}
+      />
       {options.map((o) => (
         <ToggleGroupItem
           key={o.value}
           value={o.value}
           disabled={o.disabled}
-          className="relative h-7 flex-1 rounded-full px-3 text-[12px] font-medium text-muted-foreground hover:bg-transparent hover:text-foreground data-[state=on]:bg-transparent data-[state=on]:text-foreground"
+          className="relative h-7 rounded-full px-3 text-[12px] font-medium text-foreground/70 transition-colors duration-150 hover:bg-transparent hover:text-foreground data-[state=on]:bg-transparent data-[state=on]:text-foreground"
         >
-          {o.value === value && <motion.span layoutId={id} transition={spring} className="absolute inset-0 rounded-full bg-white shadow-[0_1px_3px_rgb(0_0_0/0.1),0_4px_12px_-6px_var(--shadow)] dark:bg-white/14" />}
-          <span className="relative">{o.label}</span>
+          {o.label}
         </ToggleGroupItem>
       ))}
     </ToggleGroup>
@@ -160,9 +164,7 @@ export function Advanced({ children, label = "Advanced" }: { children: ReactNode
     <Collapsible open={open} onOpenChange={setOpen}>
       <CollapsibleTrigger asChild>
         <button type="button" data-spot className="flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[12.5px] font-medium text-muted-foreground transition-colors hover:text-foreground">
-          <motion.span animate={{ rotate: open ? 90 : 0 }} transition={spring} className="grid place-items-center">
-            <ChevronRight className="size-3.5" />
-          </motion.span>
+          <ChevronRight className={cn("size-3.5 transition-transform duration-200 ease-out", open && "rotate-90")} />
           {label}
         </button>
       </CollapsibleTrigger>

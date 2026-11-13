@@ -1,4 +1,5 @@
-import { useEffect, useId, useLayoutEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useLayoutEffect, useState, type ComponentType } from "react";
+import { flushSync } from "react-dom";
 import { AnimatePresence, MotionConfig, motion } from "motion/react";
 import { Minus, Settings, X } from "lucide-react";
 import { IconButton } from "@/components/Controls";
@@ -12,15 +13,41 @@ import { cn } from "@/lib/utils";
 import { minimizeWindow, startWindowDrag } from "@/lib/window";
 import type { Mode } from "@/lib/types";
 import { Home, visualFor } from "./screens/Home";
-import { About, AdvancedSettings, ConnectionSettings, DnsSettings, GeneralSettings, KillSwitchSettings, LogsPage, SettingsIndex } from "./screens/Settings";
-import { AddServer, Servers, ServerSetup } from "./screens/Servers";
-import { ServerEditor } from "./screens/ServerEditor";
-import { Diagnostics, SpeedTest } from "./screens/Tools";
-import { Updates } from "./screens/Updates";
-import { Console } from "./screens/Console";
+
+// Everything except Home loads on demand, then gets prefetched once the app is idle.
+const loaders = {
+  settings: () => import("./screens/Settings"),
+  servers: () => import("./screens/Servers"),
+  editor: () => import("./screens/ServerEditor"),
+  tools: () => import("./screens/Tools"),
+  updates: () => import("./screens/Updates"),
+  console: () => import("./screens/Console"),
+  usage: () => import("./screens/Usage"),
+};
+type ScreenProps = { nav: Nav; id?: string };
+function screen<K extends keyof typeof loaders>(key: K, name: string) {
+  return lazy(() => loaders[key]().then((m) => ({ default: (m as unknown as Record<string, ComponentType<ScreenProps>>)[name] })));
+}
+const SettingsIndex = screen("settings", "SettingsIndex");
+const GeneralSettings = screen("settings", "GeneralSettings");
+const DnsSettings = screen("settings", "DnsSettings");
+const ConnectionSettings = screen("settings", "ConnectionSettings");
+const KillSwitchSettings = screen("settings", "KillSwitchSettings");
+const AdvancedSettings = screen("settings", "AdvancedSettings");
+const LogsPage = screen("settings", "LogsPage");
+const About = screen("settings", "About");
+const Servers = screen("servers", "Servers");
+const AddServer = screen("servers", "AddServer");
+const ServerSetup = screen("servers", "ServerSetup");
+const ServerEditor = screen("editor", "ServerEditor");
+const Diagnostics = screen("tools", "Diagnostics");
+const SpeedTest = screen("tools", "SpeedTest");
+const Updates = screen("updates", "Updates");
+const Console = screen("console", "Console");
+const Usage = screen("usage", "Usage");
 
 export type Route =
-  | { name: "settings" | "general" | "dns" | "connection" | "killswitch" | "servers" | "add-server" | "setup" | "diagnostics" | "speed" | "advanced" | "about" | "logs" | "updates" | "console" }
+  | { name: "settings" | "general" | "dns" | "connection" | "killswitch" | "servers" | "add-server" | "setup" | "diagnostics" | "speed" | "advanced" | "about" | "logs" | "updates" | "console" | "usage" }
   | { name: "edit-server"; id?: string };
 
 export interface Nav {
@@ -64,6 +91,8 @@ function Screen({ route, nav }: { route: Route; nav: Nav }) {
       return <Updates nav={nav} />;
     case "console":
       return <Console nav={nav} />;
+    case "usage":
+      return <Usage nav={nav} />;
   }
 }
 
@@ -73,15 +102,12 @@ function Backdrop({ on }: { on: boolean }) {
       <div className="orb orb-1" />
       <div className="orb orb-2" />
       <div className="orb orb-3" />
-      <div className="halo" />
-      <div className="grain" />
     </div>
   );
 }
 
-/** LOTUS / SHADOW switch, a glass capsule with a sliding pill. */
+/** LOTUS / SHADOW switch: a capsule with a pill that slides on the compositor. */
 function ModeSwitch({ mode, onChange }: { mode: Mode; onChange: (m: Mode) => void }) {
-  const id = useId();
   const items: { value: Mode; label: string }[] = [
     { value: "lotus", label: "LOTUS" },
     { value: "shadow", label: "SHADOW" },
@@ -93,8 +119,15 @@ function ModeSwitch({ mode, onChange }: { mode: Mode; onChange: (m: Mode) => voi
       value={mode}
       onValueChange={(v) => v && onChange(v as Mode)}
       aria-label="Mode"
-      className="glass grid h-[36px] w-[200px] grid-cols-2 justify-self-center rounded-full p-[3px]"
+      className="glass relative grid h-[36px] w-[200px] grid-cols-2 justify-self-center rounded-full p-[3px]"
     >
+      <span
+        aria-hidden="true"
+        className={cn(
+          "absolute top-[3px] bottom-[3px] left-[3px] w-[calc(50%-3px)] rounded-full transition-[translate,background-color] duration-200 ease-out",
+          mode === "shadow" ? "translate-x-full bg-btn-a shadow-[inset_0_1px_0_rgb(255_255_255/0.16)]" : "bg-white shadow-[0_1px_3px_rgb(0_0_0/0.08),0_6px_16px_-8px_var(--shadow)]",
+        )}
+      />
       {items.map((it) => {
         const active = it.value === mode;
         return (
@@ -102,23 +135,11 @@ function ModeSwitch({ mode, onChange }: { mode: Mode; onChange: (m: Mode) => voi
             key={it.value}
             value={it.value}
             className={cn(
-              "relative h-full rounded-full pl-[0.22em] text-[11px] font-semibold tracking-[0.22em] transition-colors duration-200 hover:bg-transparent data-[state=on]:bg-transparent",
-              active ? (it.value === "lotus" ? "text-primary" : "text-white") : "text-faint hover:text-muted-foreground",
+              "relative h-full rounded-full pl-[0.22em] text-[11px] font-semibold tracking-[0.22em] transition-colors duration-150 hover:bg-transparent data-[state=on]:bg-transparent",
+              active ? (it.value === "lotus" ? "text-primary" : "text-white") : "text-muted-foreground hover:text-foreground",
             )}
           >
-            {active && (
-              <motion.span
-                layoutId={id}
-                transition={spring}
-                className={cn(
-                  "absolute inset-0 rounded-full",
-                  it.value === "lotus"
-                    ? "bg-white shadow-[0_1px_3px_rgb(0_0_0/0.08),0_6px_16px_-8px_var(--shadow)]"
-                    : "bg-linear-120 from-on-a to-on-b shadow-[inset_0_1px_0_rgb(255_255_255/0.18),0_6px_18px_-8px_var(--glow)]",
-                )}
-              />
-            )}
-            <span className="relative">{it.label}</span>
+            {it.label}
           </ToggleGroupItem>
         );
       })}
@@ -127,11 +148,12 @@ function ModeSwitch({ mode, onChange }: { mode: Mode; onChange: (m: Mode) => voi
 }
 
 const pageVariants = {
-  enter: (dir: number) => ({ x: dir > 0 ? 32 : -24, opacity: 0 }),
+  enter: (dir: number) => ({ x: dir > 0 ? 20 : -14, opacity: 0 }),
   center: { x: 0, opacity: 1 },
-  exit: (dir: number) => ({ x: dir > 0 ? -24 : 32, opacity: 0 }),
+  exit: (dir: number) => ({ x: dir > 0 ? -14 : 20, opacity: 0 }),
 };
-const pageTransition = { x: { type: "spring", stiffness: 560, damping: 48, mass: 0.8 }, opacity: { duration: 0.16, ease: easeOut } } as const;
+// Critically damped: settles in about 200 ms without overshoot.
+const pageTransition = { x: { type: "spring", stiffness: 720, damping: 54, mass: 0.7 }, opacity: { duration: 0.12, ease: easeOut } } as const;
 
 export function App() {
   const ready = useStore((s) => s.ready);
@@ -169,7 +191,13 @@ export function App() {
   }, [mode, settings?.motion]);
 
   useEffect(() => {
-    if (ready) requestAnimationFrame(() => api.appReady());
+    if (!ready) return;
+    requestAnimationFrame(() => api.appReady());
+    // Warm the other screens so the first visit to each opens instantly.
+    const warm = () => Object.values(loaders).forEach((load) => void load());
+    const idle = (window as Window & { requestIdleCallback?: (cb: () => void) => number }).requestIdleCallback;
+    if (idle) idle(warm);
+    else window.setTimeout(warm, 500);
   }, [ready]);
 
   useEffect(() => {
@@ -184,7 +212,12 @@ export function App() {
 
   async function switchMode(m: Mode) {
     if (!settings || m === settings.mode) return;
-    setState({ settings: { ...settings, mode: m } });
+    const swap = () => setState({ settings: { ...settings, mode: m } });
+    // One GPU crossfade of the whole window instead of animating every colour token.
+    const doc = document as Document & { startViewTransition?: (cb: () => void) => unknown };
+    const reduce = settings.motion === "reduce" || (settings.motion !== "full" && matchMedia("(prefers-reduced-motion: reduce)").matches);
+    if (doc.startViewTransition && !reduce) doc.startViewTransition(() => flushSync(swap));
+    else swap();
     try {
       setState({ settings: await api.setMode(m) });
     } catch (e) {
@@ -235,8 +268,8 @@ export function App() {
             <motion.div
               className="absolute inset-0"
               initial={false}
-              animate={top ? { opacity: 0, scale: 0.96 } : { opacity: 1, scale: 1 }}
-              transition={{ duration: 0.22, ease: easeOut }}
+              animate={top ? { opacity: 0, scale: 0.98 } : { opacity: 1, scale: 1 }}
+              transition={{ duration: 0.16, ease: easeOut }}
               inert={!!top}
             >
               <Home nav={nav} />
@@ -244,7 +277,9 @@ export function App() {
             <AnimatePresence initial={false} custom={dir}>
               {top && (
                 <motion.div key={stack.length + top.name} className="absolute inset-0" custom={dir} variants={pageVariants} initial="enter" animate="center" exit="exit" transition={pageTransition}>
-                  <Screen route={top} nav={nav} />
+                  <Suspense fallback={null}>
+                    <Screen route={top} nav={nav} />
+                  </Suspense>
                 </motion.div>
               )}
             </AnimatePresence>

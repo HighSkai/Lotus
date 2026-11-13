@@ -86,15 +86,14 @@ export function Diagnostics({ nav }: { nav: Nav }) {
   );
 }
 
-function Stat({ k, v, u, digits = 1 }: { k: string; v: number | null | undefined; u: string; digits?: number }) {
+function Stat({ v, unit, digits = 1 }: { v: number | null | undefined; unit: string; digits?: number }) {
   return (
-    <Card className="items-center gap-0.5 px-2 py-3.5 text-center">
-      <div className="text-[10.5px] font-medium tracking-[0.07em] text-faint uppercase">{k}</div>
+    <div className="flex-1 text-center">
       <div className="text-[22px] font-semibold tracking-[-0.02em] tabular-nums">
-        {v == null ? "—" : <NumberFlow value={v} format={{ maximumFractionDigits: v >= 100 ? 0 : digits }} transformTiming={{ duration: 700, easing: "cubic-bezier(0.22, 1, 0.36, 1)" }} />}
+        {v == null ? "—" : <NumberFlow value={v} format={{ maximumFractionDigits: v >= 100 ? 0 : digits }} transformTiming={{ duration: 450, easing: "cubic-bezier(0.22, 1, 0.36, 1)" }} />}
       </div>
-      <div className="text-[11px] text-faint">{u}</div>
-    </Card>
+      <div className="text-[12px] text-muted-foreground">{unit}</div>
+    </div>
   );
 }
 
@@ -107,11 +106,11 @@ export function SpeedTest({ nav }: { nav: Nav }) {
   const via = status?.state === "connected" ? (status.mode === "shadow" ? `through ${status.profile_name ?? "your server"}` : "with LOTUS DNS") : "on your normal connection";
   return (
     <Page title="Speed test" onBack={nav.back}>
-      <div className="grid grid-cols-3 gap-2">
-        <Stat k="Down" v={r?.download_mbps} u="Mbps" />
-        <Stat k="Up" v={r?.upload_mbps} u="Mbps" />
-        <Stat k="Latency" v={r?.latency_ms} u="ms" digits={0} />
-      </div>
+      <Card className="flex-row items-start py-4">
+        <Stat v={r?.download_mbps} unit="Mbps down" />
+        <Stat v={r?.upload_mbps} unit="Mbps up" />
+        <Stat v={r?.latency_ms} unit="ms latency" digits={0} />
+      </Card>
       <Button
         size="lg"
         className="w-full"

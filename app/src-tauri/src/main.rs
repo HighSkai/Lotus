@@ -75,6 +75,8 @@ fn main() {
             commands::speed_test,
             commands::connections,
             commands::verify_server,
+            commands::usage,
+            commands::clear_usage,
             commands::logs,
             commands::save_server_script,
             commands::server_script,

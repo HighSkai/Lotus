@@ -392,6 +392,8 @@ pub struct LotusOptions {
     pub block_plain_dns: bool,
     /// Re-enable protection automatically after a reboot.
     pub resume_on_boot: bool,
+    /// Add this session's time to the local usage history.
+    pub record_usage: bool,
 }
 
 impl Default for LotusOptions {
@@ -404,6 +406,7 @@ impl Default for LotusOptions {
             block_malware: false,
             block_plain_dns: true,
             resume_on_boot: false,
+            record_usage: true,
         }
     }
 }
@@ -445,6 +448,8 @@ pub struct ShadowOptions {
     /// TUN MTU; `None` uses the engine default.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub mtu: Option<u16>,
+    /// Add this session's time and traffic to the local usage history.
+    pub record_usage: bool,
 }
 
 impl Default for ShadowOptions {
@@ -459,6 +464,7 @@ impl Default for ShadowOptions {
             block_trackers: false,
             quic: QuicPolicy::Auto,
             mtu: None,
+            record_usage: true,
         }
     }
 }

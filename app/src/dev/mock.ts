@@ -26,8 +26,8 @@ let profiles: ServerProfile[] = [
 let settings: AppSettings = {
   mode: "lotus",
   selected_profile: "p1",
-  lotus: { provider: "cloudflare", transport: "doh", block_trackers: true, block_malware: false, block_plain_dns: false, resume_on_boot: true },
-  shadow: { kill_switch: true, allow_lan: true, auto_reconnect: true, resume_on_boot: true, ipv6: "tunnel", dns_provider: "cloudflare", block_trackers: true, quic: "auto" },
+  lotus: { provider: "cloudflare", transport: "doh", block_trackers: true, block_malware: false, block_plain_dns: false, resume_on_boot: true, record_usage: true },
+  shadow: { kill_switch: true, allow_lan: true, auto_reconnect: true, resume_on_boot: true, ipv6: "tunnel", dns_provider: "cloudflare", block_trackers: true, quic: "auto", record_usage: true },
   launch_at_startup: true,
   connect_on_launch: false,
   close_to_tray: true,
@@ -229,6 +229,24 @@ export async function installMock() {
               { id: "encryption", title: "Encryption", outcome: "info", summary: "VLESS · REALITY · Vision over TCP 443", detail: "TLS 1.3 (REALITY): X25519 key exchange authenticated with your server's key, AES-GCM or ChaCha20 for data. XTLS-Vision avoids double-encrypting traffic that is already TLS." },
             ],
           };
+        case "usage": {
+          // Six weeks of plausible history, generated per session.
+          const out = [];
+          const now = new Date();
+          for (let i = 0; i < 300; i++) {
+            const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() - i);
+            const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+            const seed = Math.sin(i * 12.9898) * 43758.5453;
+            const r = seed - Math.floor(seed);
+            if (r < 0.18) continue;
+            out.push({ date: key, mode: "lotus", seconds: Math.round(3600 * (2 + r * 6)), up: 0, down: 0 });
+            if (r > 0.4) out.push({ date: key, mode: "shadow", server_id: "p1", server: "Frankfurt VPS", seconds: Math.round(3600 * r * 5), up: Math.round(4e7 * r), down: Math.round(1.6e9 * r * r) });
+            if (r > 0.85) out.push({ date: key, mode: "shadow", server_id: "p2", server: "Home lab", seconds: Math.round(1800 * r), up: Math.round(9e6 * r), down: Math.round(2e8 * r) });
+          }
+          return { days: out };
+        }
+        case "clear_usage":
+          return null;
         case "update_status":
           return update;
         case "check_update":

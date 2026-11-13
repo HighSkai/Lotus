@@ -42,6 +42,10 @@ pub enum Command {
     Connections,
     /// Check what the server really is: authenticated handshake, camouflage, exit.
     VerifyServer { profile: ServerProfile },
+    /// Local usage history (time and traffic per day, mode and server).
+    Usage,
+    /// Forget the usage history.
+    ClearUsage,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -212,6 +216,27 @@ pub struct VerifyReport {
     pub protocol: String,
     pub checks: Vec<Check>,
     pub generated_at: u64,
+}
+
+/// One day of use for one mode and server. Only totals: no destinations.
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+pub struct UsageDay {
+    /// Local calendar date, `YYYY-MM-DD`.
+    pub date: String,
+    pub mode: Mode,
+    /// Server profile (SHADOW); `None` for LOTUS.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub server_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub server: Option<String>,
+    pub seconds: u64,
+    pub up: u64,
+    pub down: u64,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+pub struct UsageReport {
+    pub days: Vec<UsageDay>,
 }
 
 pub fn encode<T: Serialize>(msg: &T) -> Vec<u8> {

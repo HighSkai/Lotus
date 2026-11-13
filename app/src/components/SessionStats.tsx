@@ -9,11 +9,11 @@ import type { Mode, Status } from "@/lib/types";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import type { Visual } from "./PowerSwitch";
 
-// Short, smooth digit rolls: counters tick every second, so they must settle well inside that.
+// Digit rolls settle well inside the one-second tick.
 const flow = {
-  transformTiming: { duration: 420, easing: "cubic-bezier(0.22, 1, 0.36, 1)" },
-  spinTiming: { duration: 420, easing: "cubic-bezier(0.22, 1, 0.36, 1)" },
-  opacityTiming: { duration: 220, easing: "ease-out" },
+  transformTiming: { duration: 300, easing: "cubic-bezier(0.22, 1, 0.36, 1)" },
+  spinTiming: { duration: 300, easing: "cubic-bezier(0.22, 1, 0.36, 1)" },
+  opacityTiming: { duration: 160, easing: "ease-out" },
 } as const;
 
 function Clock({ ms, animated }: { ms: number; animated: boolean }) {
@@ -24,44 +24,38 @@ function Clock({ ms, animated }: { ms: number; animated: boolean }) {
       <span className="inline-flex items-baseline">
         {h > 0 && (
           <>
-            <NumberFlow value={h} trend={1} animated={animated} {...flow} />
-            <span className="px-px">:</span>
+            <NumberFlow value={h} trend={1} animated={animated} {...flow} />:
           </>
         )}
-        <NumberFlow value={m} format={two} digits={{ 1: { max: 5 } }} trend={1} animated={animated} {...flow} />
-        <span className="px-px">:</span>
+        <NumberFlow value={m} format={two} digits={{ 1: { max: 5 } }} trend={1} animated={animated} {...flow} />:
         <NumberFlow value={s} format={two} digits={{ 1: { max: 5 } }} trend={1} animated={animated} {...flow} />
       </span>
     </NumberFlowGroup>
   );
 }
 
-function Stat({ label, children, tip }: { label: string; children: ReactNode; tip?: ReactNode }) {
-  const body = (
-    <div className="flex min-w-[92px] flex-1 flex-col items-center gap-1 px-3">
-      <div className="flex h-5 items-center text-[17px] leading-none font-semibold tracking-[-0.02em] tabular-nums">{children}</div>
-      <div className="text-[10.5px] font-medium tracking-[0.07em] text-faint uppercase">{label}</div>
-    </div>
-  );
-  if (!tip) return body;
+/** A figure in the foreground colour followed by its plain-language unit. */
+function Fig({ children, unit }: { children: ReactNode; unit?: string }) {
   return (
-    <Tooltip>
-      <TooltipTrigger asChild>{body}</TooltipTrigger>
-      <TooltipContent side="bottom">{tip}</TooltipContent>
-    </Tooltip>
+    <span className="whitespace-nowrap">
+      <span className="font-medium text-foreground tabular-nums">{children}</span>
+      {unit && <span> {unit}</span>}
+    </span>
   );
 }
 
+const Dot = () => <span className="text-faint">·</span>;
+
 const swap = {
-  initial: { opacity: 0, y: 6, filter: "blur(4px)" },
-  animate: { opacity: 1, y: 0, filter: "blur(0px)" },
-  exit: { opacity: 0, y: -4, filter: "blur(4px)" },
-  transition: { duration: 0.2, ease: easeOut },
+  initial: { opacity: 0, y: 4 },
+  animate: { opacity: 1, y: 0 },
+  exit: { opacity: 0, y: -3 },
+  transition: { duration: 0.14, ease: easeOut },
 };
 
 /**
- * What this session has done so far, right under the power switch. While off it
- * shows the previous session's totals (or a one-line hint).
+ * One quiet line under the switch: what this session has done so far. While
+ * off it shows the previous session's totals, or a short hint.
  */
 export function SessionStats({
   visual,
@@ -86,32 +80,45 @@ export function SessionStats({
   const elapsed = running && since ? now - since : 0;
   const total = (live?.traffic.up_total ?? 0) + (live?.traffic.down_total ?? 0);
   const b = byteParts(total);
-  const shields = live?.protections ?? [];
-  const activeShields = shields.filter((p) => p.active);
+  const active = (live?.protections ?? []).filter((p) => p.active);
 
   return (
-    <div className="grid h-[58px] w-full place-items-center">
+    <div className="grid h-10 w-full place-items-center">
       <AnimatePresence mode="wait" initial={false}>
         {kind === "live" ? (
-          <motion.div key={`live-${mode}`} {...swap} className="glass flex items-stretch divide-x divide-border rounded-[20px] py-2.5">
+          <motion.div key={`live-${mode}`} {...swap} className="flex items-baseline gap-2 text-[13.5px] text-muted-foreground">
             {mode === "shadow" ? (
               <>
-                <Stat label="Secured" tip={`↑ ${bytes(live!.traffic.up_total)} · ↓ ${bytes(live!.traffic.down_total)}`}>
-                  <NumberFlow value={b.value} format={{ minimumFractionDigits: b.digits, maximumFractionDigits: b.digits }} suffix={` ${b.unit}`} animated={animated} {...flow} />
-                </Stat>
-                <Stat label="Session">
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span tabIndex={0} className="outline-none">
+                      <Fig unit="secured">
+                        <NumberFlow value={b.value} format={{ minimumFractionDigits: b.digits, maximumFractionDigits: b.digits }} suffix={` ${b.unit}`} animated={animated} {...flow} />
+                      </Fig>
+                    </span>
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom">{`${bytes(live!.traffic.up_total)} up, ${bytes(live!.traffic.down_total)} down`}</TooltipContent>
+                </Tooltip>
+                <Dot />
+                <Fig>
                   <Clock ms={elapsed} animated={animated} />
-                </Stat>
-                <Stat label="Latency">{live!.latency_ms != null ? <NumberFlow value={live!.latency_ms} suffix=" ms" animated={animated} {...flow} /> : "—"}</Stat>
+                </Fig>
+                {live!.latency_ms != null && (
+                  <>
+                    <Dot />
+                    <Fig unit="ms">
+                      <NumberFlow value={live!.latency_ms} animated={animated} {...flow} />
+                    </Fig>
+                  </>
+                )}
               </>
             ) : (
               <>
-                <Stat label="Session">
+                <Fig>
                   <Clock ms={elapsed} animated={animated} />
-                </Stat>
-                <Stat label="Protections" tip={activeShields.map((p) => p.label).join(" · ") || undefined}>
-                  <NumberFlow value={activeShields.length} suffix={` of ${shields.length}`} animated={animated} {...flow} />
-                </Stat>
+                </Fig>
+                <Dot />
+                <Fig unit={active.length === 1 ? "protection on" : "protections on"}>{active.length}</Fig>
               </>
             )}
           </motion.div>
@@ -121,14 +128,14 @@ export function SessionStats({
           <motion.p
             key={`${kind}-${mode}`}
             {...swap}
-            className={cn("m-0 max-w-[290px] text-center text-[12.5px] leading-snug text-balance", kind === "error" ? "text-destructive" : "text-muted-foreground")}
+            className={cn("m-0 max-w-[300px] text-center text-[12.5px] leading-snug text-balance", kind === "error" ? "text-destructive" : "text-muted-foreground")}
           >
             {kind === "error"
               ? live?.error?.message ?? "Something went wrong"
               : kind === "last"
                 ? mode === "shadow"
-                  ? `Last session · ${bytes(last!.bytes)} secured · ${duration(last!.ms)}`
-                  : `Last session · ${duration(last!.ms)} protected`
+                  ? `Last session: ${bytes(last!.bytes)} in ${duration(last!.ms)}`
+                  : `Last session: ${duration(last!.ms)}`
                 : idle}
           </motion.p>
         )}

@@ -21,6 +21,7 @@ mod paths;
 mod probe;
 mod session;
 mod state;
+mod usage;
 mod verify;
 #[cfg(windows)]
 mod win;
@@ -122,6 +123,7 @@ async fn serve(stop: impl std::future::Future<Output = ()>, mut scm_events: toki
     paths.prepare()?;
     let ctrl = Controller::new(paths)?;
     ctrl.startup_recovery().await;
+    tokio::spawn(usage::run(ctrl.clone()));
 
     // System events → controller.
     let (net_tx, mut net_rx) = tokio::sync::mpsc::unbounded_channel::<()>();

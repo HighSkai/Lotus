@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { AppWindow, ArrowDownToLine, Copy, Cpu, Eye, FileText, Gauge, Info, Lock, Power, RefreshCw, Server, Shield, ShieldCheck, SlidersHorizontal, Wrench, Zap } from "lucide-react";
+import { ArrowDownToLine, ChartColumn, Copy, Cpu, Gauge, Info, Lock, RefreshCw, Server, Shield, ShieldCheck, SlidersHorizontal, Wrench, Zap } from "lucide-react";
 import { Advanced, Hint, IconButton, List, NavRow, Page, Pill, RadioList, Seg, SettingRow, ToggleRow } from "@/components/Controls";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -40,6 +40,7 @@ export function SettingsIndex({ nav }: { nav: Nav }) {
         <NavRow icon={Zap} label="Connection" onClick={() => nav.push({ name: "connection" })} />
         <NavRow icon={Shield} label="Kill switch" value={settings.shadow.kill_switch ? "On" : "Off"} onClick={() => nav.push({ name: "killswitch" })} />
         <NavRow icon={Server} label="Servers" value={profiles.length || undefined} onClick={() => nav.push({ name: "servers" })} />
+        <NavRow icon={ChartColumn} label="Usage" onClick={() => nav.push({ name: "usage" })} />
       </List>
       <List>
         <NavRow icon={ShieldCheck} label="Privacy check" onClick={() => nav.push({ name: "diagnostics" })} />
@@ -57,10 +58,9 @@ export function GeneralSettings({ nav }: { nav: Nav }) {
   return (
     <Page title="General" onBack={nav.back}>
       <List>
-        <ToggleRow icon={Power} label="Launch at startup" checked={s.launch_at_startup} onChange={(v) => save((x) => ({ ...x, launch_at_startup: v }))} />
-        <ToggleRow icon={Zap} label="Turn on when LOTUS starts" checked={s.connect_on_launch} onChange={(v) => save((x) => ({ ...x, connect_on_launch: v }))} />
+        <ToggleRow label="Launch at startup" checked={s.launch_at_startup} onChange={(v) => save((x) => ({ ...x, launch_at_startup: v }))} />
+        <ToggleRow label="Turn on when LOTUS starts" checked={s.connect_on_launch} onChange={(v) => save((x) => ({ ...x, connect_on_launch: v }))} />
         <ToggleRow
-          icon={RefreshCw}
           label="Stay protected after a restart"
           sub="Reconnects before you sign in"
           checked={s.lotus.resume_on_boot && s.shadow.resume_on_boot}
@@ -68,11 +68,11 @@ export function GeneralSettings({ nav }: { nav: Nav }) {
         />
       </List>
       <List>
-        <ToggleRow icon={AppWindow} label="Keep running in the tray" checked={s.close_to_tray} onChange={(v) => save((x) => ({ ...x, close_to_tray: v }))} />
-        <ToggleRow icon={Power} label="Turn off when quitting" checked={s.disconnect_on_quit} onChange={(v) => save((x) => ({ ...x, disconnect_on_quit: v }))} />
+        <ToggleRow label="Keep running in the tray" checked={s.close_to_tray} onChange={(v) => save((x) => ({ ...x, close_to_tray: v }))} />
+        <ToggleRow label="Turn off when quitting" checked={s.disconnect_on_quit} onChange={(v) => save((x) => ({ ...x, disconnect_on_quit: v }))} />
       </List>
       <List>
-        <SettingRow icon={Eye} label="Animations">
+        <SettingRow label="Animations">
           <Seg
             label="Animations"
             value={s.motion}
@@ -153,9 +153,8 @@ export function DnsSettings({ nav }: { nav: Nav }) {
         </List>
       )}
       <List title="Blocking">
-        <ToggleRow icon={Eye} label="Trackers & ads" checked={s.lotus.block_trackers} onChange={(v) => save((x) => ({ ...x, lotus: { ...x.lotus, block_trackers: v } }))} />
+        <ToggleRow label="Trackers & ads" checked={s.lotus.block_trackers} onChange={(v) => save((x) => ({ ...x, lotus: { ...x.lotus, block_trackers: v } }))} />
         <ToggleRow
-          icon={Shield}
           label="Malicious domains"
           sub={!cur?.malware_variant ? "Not offered by this resolver" : s.lotus.provider === "quad9" ? "Always on with Quad9" : undefined}
           checked={s.lotus.provider === "quad9" || (s.lotus.block_malware && !!cur?.malware_variant)}
@@ -166,7 +165,6 @@ export function DnsSettings({ nav }: { nav: Nav }) {
       <Advanced>
         <List>
           <ToggleRow
-            icon={Lock}
             label="Block other DNS servers"
             sub="Stops apps with hard-coded resolvers"
             checked={s.lotus.block_plain_dns}
@@ -187,9 +185,9 @@ export function ConnectionSettings({ nav }: { nav: Nav }) {
   return (
     <Page title="Connection" onBack={nav.back}>
       <List>
-        <ToggleRow icon={RefreshCw} label="Reconnect automatically" checked={s.shadow.auto_reconnect} onChange={(v) => save((x) => ({ ...x, shadow: { ...x.shadow, auto_reconnect: v } }))} />
-        <ToggleRow icon={Eye} label="Block trackers & ads" checked={s.shadow.block_trackers} onChange={(v) => save((x) => ({ ...x, shadow: { ...x.shadow, block_trackers: v } }))} />
-        <SettingRow icon={Server} label="IPv6" sub={s.shadow.ipv6 === "tunnel" ? "Blocked if your server lacks it" : undefined}>
+        <ToggleRow label="Reconnect automatically" checked={s.shadow.auto_reconnect} onChange={(v) => save((x) => ({ ...x, shadow: { ...x.shadow, auto_reconnect: v } }))} />
+        <ToggleRow label="Block trackers & ads" checked={s.shadow.block_trackers} onChange={(v) => save((x) => ({ ...x, shadow: { ...x.shadow, block_trackers: v } }))} />
+        <SettingRow label="IPv6" sub={s.shadow.ipv6 === "tunnel" ? "Blocked if your server lacks it" : undefined}>
           <Seg
             label="IPv6"
             value={s.shadow.ipv6}
@@ -201,7 +199,7 @@ export function ConnectionSettings({ nav }: { nav: Nav }) {
           />
         </SettingRow>
       </List>
-      <List title="DNS inside the tunnel" hint="Encrypted end to end, so neither your ISP nor your VPS host can read lookups.">
+      <List title="DNS inside the tunnel">
         <RadioList<DnsProviderId>
           label="Tunnel DNS"
           value={s.shadow.dns_provider}
@@ -248,9 +246,9 @@ export function KillSwitchSettings({ nav }: { nav: Nav }) {
   const hint = useReconnectHint("shadow");
   return (
     <Page title="Kill switch" onBack={nav.back}>
-      <List hint="If SHADOW drops, Windows blocks everything outside the tunnel instead of leaking. The block lifts when you turn SHADOW off.">
-        <ToggleRow icon={Shield} label="Kill switch" checked={s.shadow.kill_switch} onChange={(v) => save((x) => ({ ...x, shadow: { ...x.shadow, kill_switch: v } }))} />
-        <ToggleRow icon={Server} label="Allow local network" sub="Printers, shares and your router" checked={s.shadow.allow_lan} onChange={(v) => save((x) => ({ ...x, shadow: { ...x.shadow, allow_lan: v } }))} />
+      <List>
+        <ToggleRow label="Kill switch" sub="Blocks the internet if SHADOW drops, instead of leaking" checked={s.shadow.kill_switch} onChange={(v) => save((x) => ({ ...x, shadow: { ...x.shadow, kill_switch: v } }))} />
+        <ToggleRow label="Allow local network" sub="Printers, shares and your router" checked={s.shadow.allow_lan} onChange={(v) => save((x) => ({ ...x, shadow: { ...x.shadow, allow_lan: v } }))} />
       </List>
       {hint}
     </Page>
@@ -265,13 +263,13 @@ export function AdvancedSettings({ nav }: { nav: Nav }) {
   return (
     <Page title="Advanced" onBack={nav.back}>
       <List>
-        <SettingRow icon={Cpu} label="LOTUS service" sub={service.connected ? `v${status?.service_version ?? "?"}` : service.message ?? "Not reachable"}>
+        <SettingRow label="LOTUS service" sub={service.connected ? `v${status?.service_version ?? "?"}` : service.message ?? "Not reachable"}>
           <Pill tone={service.connected ? "good" : "bad"}>
             <span className="size-1.5 rounded-full bg-current" /> {service.connected ? "Running" : "Down"}
           </Pill>
         </SettingRow>
-        <SettingRow icon={Zap} label="Networking engine" sub={`sing-box ${engine}`} />
-        <NavRow icon={FileText} label="Engine log" onClick={() => nav.push({ name: "logs" })} />
+        <SettingRow label="Networking engine" sub={`sing-box ${engine}`} />
+        <NavRow label="Engine log" onClick={() => nav.push({ name: "logs" })} />
       </List>
       <div className="flex flex-col items-start gap-2">
         <Button
@@ -291,7 +289,7 @@ export function AdvancedSettings({ nav }: { nav: Nav }) {
         >
           <Wrench /> Repair service
         </Button>
-        <Hint>Re-registers the background service. Needs administrator approval.</Hint>
+        <Hint>Needs administrator approval.</Hint>
       </div>
     </Page>
   );

@@ -4,6 +4,7 @@
 
 Nothing. There is no account, no analytics, no telemetry, no crash reporting and no LOTUS server. The only background request is the update check described below, which you can turn off. LOTUS never records the sites you visit.
 
+- **Usage history** (from 1.4.0; switch off or clear in **Settings → Usage**): per day, the time each mode was on and, for SHADOW, the data sent and received through each server. Only those totals are kept, never destinations or sites, in `%ProgramData%\LOTUS\usage.json`, which only SYSTEM and administrators can read. The app shows it on request; it never leaves the PC.
 - **Engine logs** run at *warning* level, so per-connection destinations aren't logged. Lines are kept **in memory only** (last 300). Server addresses, UUIDs, passwords, keys and IP addresses are redacted before they're stored. Nothing is written to disk.
 - **Network requests LOTUS itself makes:**
   - `https://1.1.1.1/cdn-cgi/trace` (and its IPv6 twin): when connecting, to learn your direct IP (leak reference) and the exit IP and country. In SHADOW the second request travels through your tunnel.

@@ -59,6 +59,9 @@ pub struct Inner {
     test_slots: Semaphore,
     /// Controller API of the engine carrying the current session (for the live console).
     pub clash: Mutex<Option<engine::Clash>>,
+    /// Local usage history, and whether the current session adds to it.
+    pub usage: Mutex<crate::usage::UsageStore>,
+    pub usage_on: AtomicBool,
 }
 
 #[derive(Clone)]
@@ -71,6 +74,7 @@ pub fn fail(code: &str, msg: impl Into<String>) -> ErrorInfo {
 impl Controller {
     pub fn new(paths: Paths) -> anyhow::Result<Self> {
         let state = StateStore::load(paths.state_file.clone());
+        let usage_file = paths.data_dir.join("usage.json");
         let status = Status { service_version: SERVICE_VERSION.into(), engine_version: singbox::ENGINE_VERSION.into(), ..Default::default() };
         let (status_tx, _) = watch::channel(status);
         let (events, _) = broadcast::channel(32);
@@ -90,6 +94,8 @@ impl Controller {
             server_ipv6: Mutex::new(Default::default()),
             test_slots: Semaphore::new(2),
             clash: Mutex::new(None),
+            usage: Mutex::new(crate::usage::UsageStore::load(usage_file)),
+            usage_on: AtomicBool::new(true),
         })))
     }
 
@@ -106,6 +112,7 @@ impl Controller {
     }
 
     pub async fn connect_lotus(&self, opts: LotusOptions, resumed: bool) -> Result<(), ErrorInfo> {
+        self.0.usage_on.store(opts.record_usage, Ordering::SeqCst);
         validate::validate_lotus_options(&opts).map_err(|e| fail("invalid_options", e.to_string()))?;
         self.stop_session(false).await;
         let cancel = CancellationToken::new();
@@ -116,6 +123,7 @@ impl Controller {
     }
 
     pub async fn connect_shadow(&self, profile: ServerProfile, opts: ShadowOptions, resumed: bool) -> Result<(), ErrorInfo> {
+        self.0.usage_on.store(opts.record_usage, Ordering::SeqCst);
         validate::validate_profile(&profile).map_err(|e| fail("invalid_profile", e.to_string()))?;
         validate::validate_shadow_options(&opts).map_err(|e| fail("invalid_options", e.to_string()))?;
         // When resuming, keep a kill switch left by the previous run in place;
@@ -208,6 +216,7 @@ impl Controller {
 
     pub async fn shutdown(&self) {
         self.stop_session(true).await;
+        self.0.usage.lock().unwrap().save();
     }
 
     /// Live connections of the running session; empty when nothing is connected.

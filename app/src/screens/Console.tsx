@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { ArrowDown, ArrowUp, Check, Info, LoaderCircle, ShieldCheck, TriangleAlert } from "lucide-react";
-import { Hint, Page, Pill } from "@/components/Controls";
+import { Page } from "@/components/Controls";
 import { ModeMark } from "@/components/ShadowMark";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -29,20 +29,21 @@ const OUTCOME = {
   info: { icon: Info, cls: "bg-primary/12 text-primary", tone: "info" as Tone },
 };
 const TONE: Record<Tone, string> = {
-  info: "text-muted-foreground",
+  info: "text-[#b6b8d6]",
   ok: "text-good",
   warn: "text-warn",
   bad: "text-destructive",
   open: "text-primary",
-  close: "text-faint",
+  close: "text-[#8a8db0]",
 };
+const TAG: Record<Tone, string> = { info: "info", ok: "ok", warn: "warn", bad: "fail", open: "open", close: "closed" };
 const clock = (t: number) => new Date(t).toLocaleTimeString([], { hour12: false });
 
 function routeLabel(route: string, server: string, short = false) {
-  if (route.includes("proxy")) return { text: short ? "tunnel" : `via ${server}`, tone: "good" as const };
-  if (route.includes("direct")) return { text: "direct", tone: "warn" as const };
-  if (route.includes("block") || route.includes("reject")) return { text: "blocked", tone: "bad" as const };
-  return { text: route || "engine", tone: "neutral" as const };
+  if (route.includes("proxy")) return { text: short ? "tunnel" : `via ${server}`, cls: "text-good" };
+  if (route.includes("direct")) return { text: "direct", cls: "text-warn" };
+  if (route.includes("block") || route.includes("reject")) return { text: "blocked", cls: "text-destructive" };
+  return { text: route || "engine", cls: "text-muted-foreground" };
 }
 
 /** Upload/download over the last minute. */
@@ -124,10 +125,10 @@ export function Console({ nav }: { nav: Nav }) {
         setSnap(s);
         const now = new Map(s.connections.map((c) => [c.id, c]));
         for (const c of s.connections) {
-          if (!seen.current.has(c.id)) log("open", `→ ${c.network} ${c.host}:${c.port}  ${routeLabel(c.route, serverName).text}`);
+          if (!seen.current.has(c.id)) log("open", `${c.network} ${c.host}:${c.port} ${routeLabel(c.route, serverName).text}`);
         }
         for (const [id, c] of seen.current) {
-          if (!now.has(id)) log("close", `✓ ${c.host}:${c.port} closed · ↑ ${bytes(c.upload)} ↓ ${bytes(c.download)}`);
+          if (!now.has(id)) log("close", `${c.host}:${c.port}, ${bytes(c.upload)} up, ${bytes(c.download)} down`);
         }
         seen.current = now;
       } catch (e) {
@@ -155,7 +156,7 @@ export function Console({ nav }: { nav: Nav }) {
     try {
       const r = await api.verifyServer(selected.id);
       setReport(r);
-      for (const c of r.checks) log(OUTCOME[c.outcome].tone, `${c.outcome === "pass" ? "✔" : c.outcome === "info" ? "·" : "!"} ${c.title}: ${c.summary}`);
+      for (const c of r.checks) log(OUTCOME[c.outcome].tone, `${c.title}: ${c.summary}`);
     } catch (e) {
       log("bad", `Verify failed: ${errorText(e)}`);
     } finally {
@@ -175,29 +176,19 @@ export function Console({ nav }: { nav: Nav }) {
             <div className="truncate text-[14px] font-semibold">{selected?.name ?? "No server selected"}</div>
             <div className="truncate text-[12px] text-muted-foreground">{status?.protocol_label ?? report?.protocol ?? "SHADOW server"}</div>
           </div>
-          <Pill tone={live ? "good" : "neutral"}>
-            <span className={cn("size-1.5 rounded-full bg-current", live && "animate-pulse")} /> {live ? "Live" : "Off"}
-          </Pill>
+          <span className={cn("text-[12.5px] font-medium", live ? "text-good" : "text-faint")}>{live ? "Connected" : "Off"}</span>
         </div>
         {live && (
-          <div className="grid grid-cols-3 gap-2 text-center">
-            <div>
-              <div className="font-mono text-[12.5px] tabular-nums">{status?.exit?.ipv4 ?? "—"}</div>
-              <div className="text-[10.5px] tracking-[0.06em] text-faint uppercase">Exit {status?.exit?.country ? `· ${country(status.exit.country)}` : ""}</div>
-            </div>
-            <div>
-              <div className="font-mono text-[12.5px] tabular-nums">{status?.latency_ms != null ? `${status.latency_ms} ms` : "—"}</div>
-              <div className="text-[10.5px] tracking-[0.06em] text-faint uppercase">Latency</div>
-            </div>
-            <div>
-              <div className="font-mono text-[12.5px] tabular-nums">{snap?.connections.length ?? 0}</div>
-              <div className="text-[10.5px] tracking-[0.06em] text-faint uppercase">Open</div>
-            </div>
-          </div>
+          <p className="m-0 truncate text-[12.5px] text-muted-foreground">
+            <span className="font-mono text-foreground tabular-nums">{status?.exit?.ipv4 ?? "—"}</span>
+            {status?.exit?.country && ` · ${country(status.exit.country)}`}
+            {status?.latency_ms != null && ` · ${status.latency_ms} ms`}
+            {` · ${snap?.connections.length ?? 0} open`}
+          </p>
         )}
         <div>
           <Graph samples={samples} />
-          <div className="mt-1 flex justify-between font-mono text-[11px] text-muted-foreground tabular-nums">
+          <div className="mt-1 flex justify-between font-mono text-[12px] text-muted-foreground tabular-nums">
             <span className="inline-flex items-center gap-1">
               <ArrowUp className="size-3 text-accent-2" /> {rate(cur.up)}
             </span>
@@ -242,30 +233,28 @@ export function Console({ nav }: { nav: Nav }) {
             const r = routeLabel(c.route, serverName, true);
             return (
               <div key={c.id} className="relative flex items-center gap-2 px-3 py-2 not-first:before:absolute not-first:before:top-0 not-first:before:right-3 not-first:before:left-3 not-first:before:h-px not-first:before:bg-border">
-                <span className="w-8 shrink-0 font-mono text-[10.5px] text-faint uppercase">{c.network}</span>
+                <span className="w-8 shrink-0 font-mono text-[11.5px] text-muted-foreground uppercase">{c.network}</span>
                 <span className="min-w-0 flex-1 truncate font-mono text-[12px]" title={`${c.host}:${c.port}`}>
                   {c.host}
-                  <span className="text-faint">:{c.port}</span>
+                  <span className="text-muted-foreground">:{c.port}</span>
                 </span>
-                <Pill tone={r.tone} className="shrink-0">
-                  {r.text}
-                </Pill>
-                <span className="w-[62px] shrink-0 text-right font-mono text-[10.5px] text-muted-foreground tabular-nums">{bytes(c.upload + c.download)}</span>
+                <span className={cn("shrink-0 text-[11.5px] font-medium", r.cls)}>{r.text}</span>
+                <span className="w-[66px] shrink-0 text-right font-mono text-[11.5px] text-muted-foreground tabular-nums">{bytes(c.upload + c.download)}</span>
               </div>
             );
           })}
         </Card>
       )}
 
-      <div ref={logBox} className="selectable max-h-[260px] min-h-[140px] overflow-y-auto rounded-[18px] bg-[#0b0c18]/90 p-3 font-mono text-[11px] leading-relaxed shadow-[inset_0_0_0_1px_rgb(255_255_255/0.06)] select-text">
+      <div ref={logBox} className="selectable max-h-[260px] min-h-[140px] overflow-y-auto rounded-[18px] bg-[#0b0c18]/90 p-3 font-mono text-[12px] leading-relaxed shadow-[inset_0_0_0_1px_rgb(255_255_255/0.06)] select-text">
         {lines.map((l) => (
           <div key={l.id} className="flex gap-2">
-            <span className="shrink-0 text-[#5d6080]">{clock(l.at)}</span>
-            <span className={cn("min-w-0 break-words", l.tone === "info" ? "text-[#b6b8d6]" : TONE[l.tone])}>{l.text}</span>
+            <span className="shrink-0 text-[#8487a6]">{clock(l.at)}</span>
+            <span className={cn("w-11 shrink-0", TONE[l.tone])}>{TAG[l.tone]}</span>
+            <span className="min-w-0 break-words text-[#d4d6ee]">{l.text}</span>
           </div>
         ))}
       </div>
-      <Hint>Connections are read live from the engine while this screen is open. Nothing is saved.</Hint>
     </Page>
   );
 }

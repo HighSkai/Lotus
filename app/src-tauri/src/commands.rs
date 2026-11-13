@@ -311,6 +311,17 @@ pub async fn connections(state: State<'_, AppState>) -> CmdResult<Value> {
     state.svc.request(Command::Connections, Duration::from_secs(5)).await
 }
 
+/// Local usage history (totals per day, mode and server).
+#[tauri::command]
+pub async fn usage(state: State<'_, AppState>) -> CmdResult<Value> {
+    state.svc.request(Command::Usage, Duration::from_secs(5)).await
+}
+
+#[tauri::command]
+pub async fn clear_usage(state: State<'_, AppState>) -> CmdResult<Value> {
+    state.svc.request(Command::ClearUsage, Duration::from_secs(5)).await
+}
+
 /// Check a saved server: authenticated handshake, what strangers see, exit address.
 #[tauri::command]
 pub async fn verify_server(state: State<'_, AppState>, id: String) -> CmdResult<Value> {

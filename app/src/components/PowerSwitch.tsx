@@ -28,7 +28,8 @@ const FILL: Record<Visual, { opacity: number; scaleX: number }> = {
   on: { opacity: 1, scaleX: 1 },
 };
 
-const knobSpring = { type: "spring", stiffness: 460, damping: 30, mass: 0.9 } as const;
+// Arrives in ~250 ms with a slight settle.
+const knobSpring = { type: "spring", stiffness: 640, damping: 38, mass: 0.8 } as const;
 
 export function PowerSwitch({ visual, mode, onToggle, disabled }: { visual: Visual; mode: Mode; onToggle: () => void; disabled?: boolean }) {
   const checked = visual === "on" || visual === "reconnecting";
@@ -46,13 +47,12 @@ export function PowerSwitch({ visual, mode, onToggle, disabled }: { visual: Visu
       aria-label={`${mode === "lotus" ? "LOTUS" : "SHADOW"}: ${LABEL[visual]}`}
       disabled={off}
       onClick={onToggle}
-      whileHover={off ? undefined : { scale: 1.015 }}
       whileTap={off ? undefined : { scale: 0.965 }}
-      transition={{ type: "spring", stiffness: 600, damping: 32 }}
+      transition={{ type: "spring", stiffness: 800, damping: 40 }}
       style={{ cursor: off ? "default" : "pointer" }}
     >
       <span className="power-track">
-        <motion.span className="power-fill" style={{ originX: 0 }} initial={false} animate={FILL[visual]} transition={{ duration: 0.34, ease: easeOut }} />
+        <motion.span className="power-fill" style={{ originX: 0 }} initial={false} animate={FILL[visual]} transition={{ duration: 0.22, ease: easeOut }} />
         <span className="power-shimmer" />
       </span>
       {/* Outer layer shakes on failure; the knob itself springs between positions. */}

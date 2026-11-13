@@ -85,7 +85,6 @@ export function Servers({ nav }: { nav: Nav }) {
               return (
                 <motion.div
                   key={p.id}
-                  layout
                   initial={{ opacity: 0, height: 0 }}
                   animate={{ opacity: 1, height: "auto" }}
                   exit={{ opacity: 0, height: 0 }}
@@ -94,8 +93,8 @@ export function Servers({ nav }: { nav: Nav }) {
                 >
                   <div className={cn("relative flex items-center gap-1 rounded-[18px] py-1 pr-1.5 transition-colors duration-200", on && "bg-primary/[0.07] ring-1 ring-primary/20 ring-inset")}>
                     <button type="button" role="radio" aria-checked={on} data-spot onClick={() => select(p.id)} className="flex min-w-0 flex-1 items-center gap-3 rounded-[16px] py-1.5 pl-3 text-left">
-                      <span className={cn("grid size-[30px] shrink-0 place-items-center rounded-[10px] transition-colors duration-200", on ? "bg-linear-120 from-on-a to-on-b text-white" : "bg-primary/10 text-primary")}>
-                        {on ? <Check className="size-4" strokeWidth={2.4} /> : <Server className="size-4" strokeWidth={1.9} />}
+                      <span className="grid size-5 shrink-0 place-items-center">
+                        {on ? <Check className="size-[18px] text-primary" strokeWidth={2.4} /> : <Server className="size-[17px] text-muted-foreground" strokeWidth={1.8} />}
                       </span>
                       <span className="flex min-w-0 flex-1 flex-col">
                         <span className="truncate text-[13.5px] font-semibold">{p.name}</span>
@@ -230,7 +229,7 @@ export function AddServer({ nav }: { nav: Nav }) {
           ))}
         </Card>
       )}
-      <List hint="Links that disable certificate checks or use unencrypted transports are refused.">
+      <List>
         <NavRow icon={Pencil} label="Enter details manually" onClick={() => nav.push({ name: "edit-server" })} />
         <NavRow icon={WandSparkles} label="Set up my own server" sub="Debian, Ubuntu or Arch Linux VPS" onClick={() => nav.push({ name: "setup" })} />
       </List>
@@ -255,7 +254,7 @@ function Step({ n, title, children }: { n: number; title: string; children: Reac
   return (
     <Card className="gap-2.5 p-4">
       <div className="flex items-center gap-2.5 text-[13.5px] font-semibold">
-        <span className="grid size-[22px] shrink-0 place-items-center rounded-full bg-linear-120 from-btn-a to-btn-b text-[11.5px] font-bold text-white">{n}</span>
+        <span className="grid size-[22px] shrink-0 place-items-center rounded-full bg-primary/14 text-[11.5px] font-semibold text-primary">{n}</span>
         {title}
       </div>
       <div className="flex flex-col gap-2.5 text-[12.5px] leading-relaxed text-muted-foreground">{children}</div>

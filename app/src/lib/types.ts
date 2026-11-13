@@ -57,6 +57,7 @@ export interface LotusOptions {
   block_malware: boolean;
   block_plain_dns: boolean;
   resume_on_boot: boolean;
+  record_usage: boolean;
 }
 
 export interface ShadowOptions {
@@ -69,6 +70,7 @@ export interface ShadowOptions {
   block_trackers: boolean;
   quic: "auto" | "block" | "allow";
   mtu?: number;
+  record_usage: boolean;
 }
 
 export interface AppSettings {
@@ -200,6 +202,16 @@ export interface ConnectionsSnapshot {
   connections: ConnInfo[];
   upload_total: number;
   download_total: number;
+}
+
+export interface UsageDay {
+  date: string;
+  mode: Mode;
+  server_id?: string;
+  server?: string;
+  seconds: number;
+  up: number;
+  down: number;
 }
 
 export interface VerifyReport {

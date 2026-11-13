@@ -137,3 +137,24 @@ Every resolver and protocol, and SHADOW through a real Google Cloud VPS (VLESS �
 | REALITY server probed by a stranger | Served the camouflage site's genuine certificate, byte-identical to the real site's; full HTTPS page returned |
 
 Finding: with a server that has no IPv6, an app that cached an IPv6 address *before* connecting has its IPv6 connection accepted and then reset, rather than refused. That's one failed request, not a leak. New lookups return IPv4 only because LOTUS flushes the Windows DNS cache and the tunnel's DNS returns no IPv6 answers.
+
+## Interface performance (v1.4.0)
+
+Measured on the production bundle in Chrome (the engine behind WebView2) with the mock backend: a 400×600 window, normal CPU and a 4× CPU slowdown. Frame timing comes from `requestAnimationFrame` intervals and Long Animation Frame entries; renderer work from a DevTools trace.
+
+| | v1.3.0 | v1.4.0 |
+|---|---|---|
+| Ready after launch | 168 ms (4× slower CPU: 1,756 ms) | 122 ms (781 ms) |
+| Renderer while idle, LOTUS off | redrawing continuously (drifting backdrop under glass blur) | 0 frames |
+| Renderer while idle, SHADOW on | redrawing continuously | ~4 small frames/s (the per-second counters) |
+| LOTUS ↔ SHADOW switch | 10 dropped frames, worst 51 ms | 0 dropped, worst 23 ms |
+| Turning SHADOW off | worst frame 77 ms | 46 ms |
+| Opening sub-pages, going back | worst 25–38 ms | 3–8 ms |
+| Main script bundle | 709 KB | 605 KB (other screens load on demand, prefetched when idle) |
+
+What changed:
+- The backdrop no longer animates.
+- Cards are translucent without a live backdrop blur (blur stays on popovers).
+- The mode change is one GPU crossfade instead of ~35 animated colour variables.
+- Sliding pills use transforms, not layout measuring.
+- Page and switch motion settle in about 200–250 ms.
